@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LayoutDashboard } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
+import { useSession } from "@/hooks/use-session";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -13,6 +14,8 @@ const nav = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const { user } = useSession();
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
       <div className="container-page flex h-16 items-center justify-between gap-4">
@@ -38,7 +41,13 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2">
-          <Link to="/auth" className="btn-outline !py-2 !px-4 text-sm">Member Login</Link>
+          {user ? (
+            <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
+              <LayoutDashboard className="h-4 w-4" /> My dashboard
+            </Link>
+          ) : (
+            <Link to="/auth" className="btn-outline !py-2 !px-4 text-sm">Member Login</Link>
+          )}
         </div>
 
         <button
@@ -65,9 +74,15 @@ export function SiteHeader() {
                 {item.label}
               </Link>
             ))}
-            <Link to="/auth" onClick={() => setOpen(false)} className="btn-primary mt-3">
-              Member Login
-            </Link>
+            {user ? (
+              <Link to="/dashboard" onClick={() => setOpen(false)} className="btn-primary mt-3">
+                My dashboard
+              </Link>
+            ) : (
+              <Link to="/auth" onClick={() => setOpen(false)} className="btn-primary mt-3">
+                Member Login
+              </Link>
+            )}
           </div>
         </div>
       )}
