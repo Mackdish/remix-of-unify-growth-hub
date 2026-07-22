@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
       { title: "Unify Youth Group — Empowering Youth in Wote, Makueni" },
       { name: "description", content: "A youth community and financial empowerment group in Wote, Makueni, Kenya. Contributions, loans, projects, and unity." },
       { property: "og:title", content: "Unify Youth Group — Empowering Youth in Wote, Makueni" },
-      { property: "og:description", content: "Empowering youth. Building community. Creating a better future." },
+      { property: "og:description", content: "A youth community and financial empowerment group in Wote, Makueni, Kenya. Contributions, loans, projects, and unity." },
     ],
   }),
   component: Home,
