@@ -44,7 +44,7 @@ function Dashboard() {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
       const [{ data: member }, { data: roles }] = await Promise.all([
-        supabase.from("members").select("id, member_code, full_name, phone, email").eq("user_id", uid).maybeSingle(),
+        supabase.from("members").select("id, member_code, full_name, phone, email").eq("user_id", uid ?? "").maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", uid ?? ""),
       ]);
       let transactions: Txn[] = [];
