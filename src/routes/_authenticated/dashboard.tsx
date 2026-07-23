@@ -126,7 +126,7 @@ function Dashboard() {
         </div>
         <div className="flex gap-2">
           {data.isAdmin && (
-            <Link to="/admin/ledger" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin ledger</Link>
+            <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
           )}
           <button onClick={signOut} className="btn-outline"><LogOut className="h-4 w-4" /> Sign out</button>
         </div>
