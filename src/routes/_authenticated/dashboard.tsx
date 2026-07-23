@@ -104,7 +104,7 @@ function Dashboard() {
             administrator so they can link your account and give you access to your financial dashboard.
           </p>
           {data?.isAdmin && (
-            <Link to="/admin/ledger" className="btn-primary mt-6"><ShieldCheck className="h-4 w-4" /> Go to admin ledger</Link>
+            <Link to="/admin" className="btn-primary mt-6"><ShieldCheck className="h-4 w-4" /> Go to admin dashboard</Link>
           )}
           <button onClick={signOut} className="btn-outline mt-3 mx-auto">
             <LogOut className="h-4 w-4" /> Sign out
@@ -126,7 +126,7 @@ function Dashboard() {
         </div>
         <div className="flex gap-2">
           {data.isAdmin && (
-            <Link to="/admin/ledger" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin ledger</Link>
+            <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
           )}
           <button onClick={signOut} className="btn-outline"><LogOut className="h-4 w-4" /> Sign out</button>
         </div>
