@@ -74,9 +74,10 @@ function RolesPage() {
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["users-with-roles"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_users_with_roles");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.rpc as any)("list_users_with_roles");
       if (error) throw error;
-      return data as Array<{ user_id: string; email: string; roles: string[] }>;
+      return (data ?? []) as Array<{ user_id: string; email: string; roles: string[] }>;
     },
     enabled: !!me?.isSuper,
   });
