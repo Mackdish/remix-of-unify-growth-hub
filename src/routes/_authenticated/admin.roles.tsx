@@ -177,7 +177,7 @@ function RolesPage() {
           }}
         >
           <select
-            className="input"
+            className="rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
             value={selectedUser}
             onChange={(e) => setSelectedUser(e.target.value)}
           >
@@ -189,7 +189,7 @@ function RolesPage() {
             ))}
           </select>
           <select
-            className="input"
+            className="rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value as AppRole)}
           >
@@ -217,7 +217,7 @@ function RolesPage() {
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
-              className="input pl-8"
+              className="pl-8 pr-3 py-2 rounded-lg border border-input bg-background text-sm"
               placeholder="Search by email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
