@@ -168,7 +168,7 @@ function AdminDashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <ActionCard
           to="/admin/ledger"
           icon={<BookOpen className="h-5 w-5" />}
@@ -186,6 +186,12 @@ function AdminDashboard() {
           icon={<Wallet className="h-5 w-5" />}
           title="Record contribution"
           description="Log a new payment, boost, fine, or repayment."
+        />
+        <ActionCard
+          to="/admin/roles"
+          icon={<ShieldCheck className="h-5 w-5" />}
+          title="Role management"
+          description="Assign or revoke admin permissions (super admin only)."
         />
       </div>
 
