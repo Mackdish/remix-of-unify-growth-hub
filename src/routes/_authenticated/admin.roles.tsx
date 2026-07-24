@@ -51,6 +51,10 @@ function RolesPage() {
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<string>("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("treasurer");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<AppRole>("treasurer");
+  const inviteFn = useServerFn(inviteAdmin);
+  const revokeInviteFn = useServerFn(revokeInvite);
 
   const { data: me, isLoading: checking } = useQuery({
     queryKey: ["is-super-admin"],
