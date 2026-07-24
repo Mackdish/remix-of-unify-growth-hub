@@ -116,6 +116,44 @@ function RolesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const { data: invites } = useQuery({
+    queryKey: ["pending-invites"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pending_invites")
+        .select("id, email, role, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!me?.isSuper,
+  });
+
+  const invite = useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: AppRole }) => {
+      return await inviteFn({ data: { email, role } });
+    },
+    onSuccess: (res: { ok: boolean; warning?: string }) => {
+      if (res.warning) {
+        toast.warning(`Invite saved. ${res.warning}`);
+      } else {
+        toast.success("Invite sent");
+      }
+      setInviteEmail("");
+      qc.invalidateQueries({ queryKey: ["pending-invites"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const cancelInvite = useMutation({
+    mutationFn: async (id: string) => await revokeInviteFn({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Invite canceled");
+      qc.invalidateQueries({ queryKey: ["pending-invites"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users ?? [];
