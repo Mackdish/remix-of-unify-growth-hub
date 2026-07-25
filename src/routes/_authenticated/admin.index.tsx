@@ -181,16 +181,10 @@ function AdminDashboard() {
           description="Add, filter, or remove entries across all categories."
         />
         <ActionCard
-          to="/admin/ledger"
-          icon={<Link2 className="h-5 w-5" />}
-          title="Manage members"
-          description="Link member records to user logins so dashboards populate."
-        />
-        <ActionCard
-          to="/admin/ledger"
-          icon={<Wallet className="h-5 w-5" />}
-          title="Record contribution"
-          description="Log a new payment, boost, fine, or repayment."
+          to="/admin/reports"
+          icon={<FileBarChart className="h-5 w-5" />}
+          title="Reports"
+          description="Monthly, loans, penalties, contributions, and more."
         />
         <ActionCard
           to="/admin/roles"
@@ -198,7 +192,19 @@ function AdminDashboard() {
           title="Role management"
           description="Assign or revoke admin permissions (super admin only)."
         />
+        <ActionCard
+          to="/admin/ledger"
+          icon={<Wallet className="h-5 w-5" />}
+          title="Record contribution"
+          description="Log a new payment, boost, fine, or repayment."
+        />
       </div>
+
+      {/* Add member + Approve accounts */}
+      <AddMemberCard />
+      <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
+
+
 
       {/* Category breakdown */}
       <section className="mt-10">
