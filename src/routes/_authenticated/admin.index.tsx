@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   FileBarChart,
   Loader2,
+  HandCoins,
 } from "lucide-react";
 
 
