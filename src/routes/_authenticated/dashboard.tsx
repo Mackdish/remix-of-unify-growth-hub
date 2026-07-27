@@ -124,7 +124,8 @@ function Dashboard() {
           <h1 className="mt-2 text-3xl md:text-4xl text-foreground">Welcome, {m.full_name.split(" ")[0]}</h1>
           <p className="text-sm text-muted-foreground mt-1">Member <span className="font-medium text-foreground">{m.member_code}</span></p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/loans" className="btn-outline"><HandCoins className="h-4 w-4" /> My loans</Link>
           {data.isAdmin && (
             <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
           )}

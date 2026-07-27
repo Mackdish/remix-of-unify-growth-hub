@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      loan_requests: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          disbursed_at: string | null
+          disbursed_transaction_id: string | null
+          id: string
+          member_id: string
+          purpose: string
+          repayment_months: number | null
+          reviewed_at: string | null
+          reviewer_id: string | null
+          reviewer_notes: string | null
+          status: Database["public"]["Enums"]["loan_request_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          disbursed_at?: string | null
+          disbursed_transaction_id?: string | null
+          id?: string
+          member_id: string
+          purpose: string
+          repayment_months?: number | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          reviewer_notes?: string | null
+          status?: Database["public"]["Enums"]["loan_request_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          disbursed_at?: string | null
+          disbursed_transaction_id?: string | null
+          id?: string
+          member_id?: string
+          purpose?: string
+          repayment_months?: number | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          reviewer_notes?: string | null
+          status?: Database["public"]["Enums"]["loan_request_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_requests_disbursed_transaction_id_fkey"
+            columns: ["disbursed_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_requests_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           created_at: string
@@ -180,6 +246,12 @@ export type Database = {
         | "secretary"
         | "project_manager"
         | "member"
+      loan_request_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "disbursed"
+        | "cancelled"
       txn_category:
         | "monthly_contribution"
         | "account_boosting"
@@ -324,6 +396,13 @@ export const Constants = {
         "secretary",
         "project_manager",
         "member",
+      ],
+      loan_request_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "disbursed",
+        "cancelled",
       ],
       txn_category: [
         "monthly_contribution",
