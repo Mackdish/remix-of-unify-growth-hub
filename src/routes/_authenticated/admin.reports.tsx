@@ -152,6 +152,55 @@ function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPdf = async () => {
+    if (!report.rows.length) return toast.error("Nothing to export");
+    const { jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const label = REPORTS.find((r) => r.key === active)?.label ?? "Report";
+    doc.setFontSize(16);
+    doc.setTextColor(20, 83, 45);
+    doc.text("Unify Youth Group", 40, 40);
+    doc.setFontSize(12);
+    doc.setTextColor(60, 60, 60);
+    doc.text(label, 40, 60);
+    doc.setFontSize(9);
+    doc.text(`Period: ${from} to ${to}`, 40, 76);
+    doc.text(`Generated: ${new Date().toLocaleString("en-KE")}`, 40, 90);
+
+    let startY = 110;
+    if (report.summary.length) {
+      autoTable(doc, {
+        startY,
+        head: [report.summary.map((s) => s.label)],
+        body: [report.summary.map((s) => s.value)],
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [20, 83, 45] },
+        theme: "grid",
+      });
+      const anyDoc = doc as unknown as { lastAutoTable?: { finalY: number } };
+      startY = (anyDoc.lastAutoTable?.finalY ?? startY) + 16;
+    }
+
+    autoTable(doc, {
+      startY,
+      head: [report.columns.map((c) => c.label)],
+      body: report.rows.map((r) =>
+        report.columns.map((c) => {
+          const v = r[c.key];
+          if (c.format === "money") return fmt(Number(v ?? 0));
+          return v == null ? "-" : String(v);
+        }),
+      ),
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [20, 83, 45], textColor: 255 },
+      alternateRowStyles: { fillColor: [245, 245, 240] },
+      theme: "striped",
+    });
+
+    doc.save(`unify-${active}-${from}-to-${to}.pdf`);
+  };
+
   if (checking || !isAdmin) {
     return <div className="container-page py-24 text-center text-muted-foreground">Checking access…</div>;
   }
