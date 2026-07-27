@@ -193,10 +193,10 @@ function AdminDashboard() {
           description="Assign or revoke admin permissions (super admin only)."
         />
         <ActionCard
-          to="/admin/ledger"
-          icon={<Wallet className="h-5 w-5" />}
-          title="Record contribution"
-          description="Log a new payment, boost, fine, or repayment."
+          to="/admin/loans"
+          icon={<HandCoins className="h-5 w-5" />}
+          title="Loan approvals"
+          description="Review, approve, reject, and disburse member loan requests."
         />
       </div>
 

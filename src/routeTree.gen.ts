@@ -22,6 +22,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin.roles'
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
+import { Route as AuthenticatedAdminLoansRouteImport } from './routes/_authenticated/admin.loans'
 import { Route as AuthenticatedAdminLedgerRouteImport } from './routes/_authenticated/admin.ledger'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -89,6 +90,11 @@ const AuthenticatedAdminReportsRoute =
     path: '/admin/reports',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminLoansRoute = AuthenticatedAdminLoansRouteImport.update({
+  id: '/admin/loans',
+  path: '/admin/loans',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminLedgerRoute =
   AuthenticatedAdminLedgerRouteImport.update({
     id: '/admin/ledger',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/loans': typeof AuthenticatedLoansRoute
   '/admin/ledger': typeof AuthenticatedAdminLedgerRoute
+  '/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/loans': typeof AuthenticatedLoansRoute
   '/admin/ledger': typeof AuthenticatedAdminLedgerRoute
+  '/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/loans': typeof AuthenticatedLoansRoute
   '/_authenticated/admin/ledger': typeof AuthenticatedAdminLedgerRoute
+  '/_authenticated/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/_authenticated/admin/reports': typeof AuthenticatedAdminReportsRoute
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/loans'
     | '/admin/ledger'
+    | '/admin/loans'
     | '/admin/reports'
     | '/admin/roles'
     | '/admin/'
@@ -171,6 +181,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/loans'
     | '/admin/ledger'
+    | '/admin/loans'
     | '/admin/reports'
     | '/admin/roles'
     | '/admin'
@@ -187,6 +198,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/loans'
     | '/_authenticated/admin/ledger'
+    | '/_authenticated/admin/loans'
     | '/_authenticated/admin/reports'
     | '/_authenticated/admin/roles'
     | '/_authenticated/admin/'
@@ -296,6 +308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminReportsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/loans': {
+      id: '/_authenticated/admin/loans'
+      path: '/admin/loans'
+      fullPath: '/admin/loans'
+      preLoaderRoute: typeof AuthenticatedAdminLoansRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/ledger': {
       id: '/_authenticated/admin/ledger'
       path: '/admin/ledger'
@@ -310,6 +329,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLoansRoute: typeof AuthenticatedLoansRoute
   AuthenticatedAdminLedgerRoute: typeof AuthenticatedAdminLedgerRoute
+  AuthenticatedAdminLoansRoute: typeof AuthenticatedAdminLoansRoute
   AuthenticatedAdminReportsRoute: typeof AuthenticatedAdminReportsRoute
   AuthenticatedAdminRolesRoute: typeof AuthenticatedAdminRolesRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -319,6 +339,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLoansRoute: AuthenticatedLoansRoute,
   AuthenticatedAdminLedgerRoute: AuthenticatedAdminLedgerRoute,
+  AuthenticatedAdminLoansRoute: AuthenticatedAdminLoansRoute,
   AuthenticatedAdminReportsRoute: AuthenticatedAdminReportsRoute,
   AuthenticatedAdminRolesRoute: AuthenticatedAdminRolesRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
