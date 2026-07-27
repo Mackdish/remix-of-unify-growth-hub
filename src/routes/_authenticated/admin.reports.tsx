@@ -250,9 +250,14 @@ function ReportsPage() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 rounded-lg border border-input bg-background px-3 py-2 text-sm block" />
           </div>
         </div>
-        <button onClick={exportCsv} className="btn-primary !py-2 !px-4 text-sm">
-          <Download className="h-4 w-4" /> Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCsv} className="btn-outline !py-2 !px-4 text-sm">
+            <Download className="h-4 w-4" /> CSV
+          </button>
+          <button onClick={exportPdf} className="btn-primary !py-2 !px-4 text-sm">
+            <Download className="h-4 w-4" /> PDF
+          </button>
+        </div>
       </div>
 
       {/* Summary line */}
