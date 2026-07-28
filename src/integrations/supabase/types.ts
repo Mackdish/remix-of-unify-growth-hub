@@ -146,6 +146,51 @@ export type Database = {
         }
         Relationships: []
       }
+      report_schedule_settings: {
+        Row: {
+          created_at: string
+          day_of_month: number
+          enabled: boolean
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_run_status: string | null
+          minute: number
+          singleton: boolean
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_of_month?: number
+          enabled?: boolean
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          minute?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_of_month?: number
+          enabled?: boolean
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_status?: string | null
+          minute?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
