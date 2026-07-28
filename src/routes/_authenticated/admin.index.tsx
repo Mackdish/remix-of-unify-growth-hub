@@ -199,6 +199,12 @@ function AdminDashboard() {
           title="Loan approvals"
           description="Review, approve, reject, and disburse member loan requests."
         />
+        <ActionCard
+          to="/admin/schedule"
+          icon={<FileBarChart className="h-5 w-5" />}
+          title="Report schedule"
+          description="Configure the day & time monthly PDF reports are sent to admins."
+        />
       </div>
 
       {/* Add member + Approve accounts */}
