@@ -25,6 +25,7 @@ import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminReportsRouteImport } from './routes/_authenticated/admin.reports'
 import { Route as AuthenticatedAdminLoansRouteImport } from './routes/_authenticated/admin.loans'
 import { Route as AuthenticatedAdminLedgerRouteImport } from './routes/_authenticated/admin.ledger'
+import { Route as ApiPublicHooksMonthlyReportRouteImport } from './routes/api/public/hooks/monthly-report'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -108,6 +109,12 @@ const AuthenticatedAdminLedgerRoute =
     path: '/admin/ledger',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicHooksMonthlyReportRoute =
+  ApiPublicHooksMonthlyReportRouteImport.update({
+    id: '/api/public/hooks/monthly-report',
+    path: '/api/public/hooks/monthly-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -125,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -142,6 +150,7 @@ export interface FileRoutesByTo {
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -161,6 +170,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/_authenticated/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/schedule'
     | '/admin/'
+    | '/api/public/hooks/monthly-report'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/schedule'
     | '/admin'
+    | '/api/public/hooks/monthly-report'
   id:
     | '__root__'
     | '/'
@@ -215,6 +227,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/roles'
     | '/_authenticated/admin/schedule'
     | '/_authenticated/admin/'
+    | '/api/public/hooks/monthly-report'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -226,6 +239,7 @@ export interface RootRouteChildren {
   GalleryRoute: typeof GalleryRoute
   ProjectsRoute: typeof ProjectsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiPublicHooksMonthlyReportRoute: typeof ApiPublicHooksMonthlyReportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -342,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminLedgerRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/monthly-report': {
+      id: '/api/public/hooks/monthly-report'
+      path: '/api/public/hooks/monthly-report'
+      fullPath: '/api/public/hooks/monthly-report'
+      preLoaderRoute: typeof ApiPublicHooksMonthlyReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -379,6 +400,7 @@ const rootRouteChildren: RootRouteChildren = {
   GalleryRoute: GalleryRoute,
   ProjectsRoute: ProjectsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiPublicHooksMonthlyReportRoute: ApiPublicHooksMonthlyReportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
