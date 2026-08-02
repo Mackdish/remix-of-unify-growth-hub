@@ -18,7 +18,9 @@ import {
   FileBarChart,
   Loader2,
   HandCoins,
+  Settings,
 } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -205,7 +207,20 @@ function AdminDashboard() {
           title="Report schedule"
           description="Configure the day & time monthly PDF reports are sent to admins."
         />
+        <ActionCard
+          to="/admin/report-preview"
+          icon={<FileBarChart className="h-5 w-5" />}
+          title="Preview monthly PDF"
+          description="See the branded monthly report exactly as admins receive it."
+        />
+        <ActionCard
+          to="/admin/settings"
+          icon={<Settings className="h-5 w-5" />}
+          title="Control panel"
+          description="Site settings, notice marquee, photo uploads, and users."
+        />
       </div>
+
 
       {/* Add member + Approve accounts */}
       <AddMemberCard />

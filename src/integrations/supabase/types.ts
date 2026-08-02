@@ -122,6 +122,45 @@ export type Database = {
         }
         Relationships: []
       }
+      notices: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          ends_at: string | null
+          id: string
+          link: string | null
+          message: string
+          priority: number
+          starts_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          link?: string | null
+          message: string
+          priority?: number
+          starts_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string | null
+          id?: string
+          link?: string | null
+          message?: string
+          priority?: number
+          starts_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pending_invites: {
         Row: {
           created_at: string
@@ -186,6 +225,84 @@ export type Database = {
           minute?: number
           singleton?: boolean
           timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      site_images: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string | null
+          id: string
+          public_url: string
+          sort_order: number
+          storage_path: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          public_url: string
+          sort_order?: number
+          storage_path: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          public_url?: string
+          sort_order?: number
+          storage_path?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      site_settings: {
+        Row: {
+          created_at: string
+          email: string
+          group_name: string
+          id: string
+          location: string
+          marquee_enabled: boolean
+          phone: string
+          singleton: boolean
+          tagline: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string
+          group_name?: string
+          id?: string
+          location?: string
+          marquee_enabled?: boolean
+          phone?: string
+          singleton?: boolean
+          tagline?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          group_name?: string
+          id?: string
+          location?: string
+          marquee_enabled?: boolean
+          phone?: string
+          singleton?: boolean
+          tagline?: string
           updated_at?: string
           updated_by?: string | null
         }

@@ -13,6 +13,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { NoticeMarquee } from "@/components/notice-marquee";
+
 
 function NotFoundComponent() {
   return (
@@ -110,8 +112,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen flex-col">
+        <NoticeMarquee />
         <SiteHeader />
         <main className="flex-1">
+
           <Outlet />
         </main>
         <SiteFooter />

@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import p1 from "@/assets/project-1.jpg";
 import p2 from "@/assets/project-2.jpg";
 import p3 from "@/assets/project-3.jpg";
@@ -18,7 +20,7 @@ export const Route = createFileRoute("/gallery")({
   component: Gallery,
 });
 
-const images = [
+const staticImages = [
   { src: hero, alt: "Members together at sunset" },
   { src: p1, alt: "Tree-planting day" },
   { src: p2, alt: "Skills training workshop" },
@@ -29,6 +31,25 @@ const images = [
 
 function Gallery() {
   const [open, setOpen] = useState<number | null>(null);
+
+  const { data: uploaded } = useQuery({
+    queryKey: ["gallery-images"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("site_images")
+        .select("id, title, public_url")
+        .eq("category", "gallery")
+        .order("sort_order")
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const images = [
+    ...(uploaded ?? []).map((u) => ({ src: u.public_url, alt: u.title ?? "Unify Youth Group photo" })),
+    ...staticImages,
+  ];
+
   return (
     <div>
       <section className="bg-surface border-b border-border">
