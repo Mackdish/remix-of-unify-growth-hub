@@ -18,7 +18,9 @@ import {
   FileBarChart,
   Loader2,
   HandCoins,
+  Settings,
 } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/_authenticated/admin/")({
