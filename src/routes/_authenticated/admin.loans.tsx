@@ -205,6 +205,7 @@ function AdminLoans() {
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Purpose</th>
                   <th className="px-4 py-3">Months</th>
+                  <th className="px-4 py-3">Due date</th>
                   <th className="px-4 py-3">Status / Notes</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -222,6 +223,7 @@ function AdminLoans() {
                       <td className="px-4 py-3 font-semibold whitespace-nowrap">{fmt(Number(r.amount))}</td>
                       <td className="px-4 py-3 max-w-[240px]">{r.purpose}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.repayment_months ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{r.due_date ?? "—"}</td>
                       <td className="px-4 py-3 text-xs">
                         <div className="uppercase tracking-wide text-muted-foreground">{r.status}</div>
                         {r.status === "pending" ? (
