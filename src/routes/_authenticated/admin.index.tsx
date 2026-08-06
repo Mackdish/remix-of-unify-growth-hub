@@ -214,6 +214,12 @@ function AdminDashboard() {
           description="See the branded monthly report exactly as admins receive it."
         />
         <ActionCard
+          to="/documents"
+          icon={<FileBarChart className="h-5 w-5" />}
+          title="Documents library"
+          description="Upload minutes, policies, the constitution and other papers for members."
+        />
+        <ActionCard
           to="/admin/settings"
           icon={<Settings className="h-5 w-5" />}
           title="Control panel"
