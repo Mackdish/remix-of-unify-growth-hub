@@ -24,6 +24,7 @@ type LoanRequest = {
   reviewed_at: string | null;
   disbursed_at: string | null;
   disbursed_transaction_id: string | null;
+  due_date: string | null;
 };
 
 const TABS: { key: LoanRequest["status"] | "all"; label: string }[] = [
@@ -129,12 +130,15 @@ function AdminLoans() {
         .select("id")
         .single();
       if (txnErr) throw txnErr;
+      const due = new Date();
+      due.setMonth(due.getMonth() + (r.repayment_months ?? 3));
       const { error } = await supabase
         .from("loan_requests")
         .update({
           status: "disbursed",
           disbursed_at: new Date().toISOString(),
           disbursed_transaction_id: txn.id,
+          due_date: due.toISOString().slice(0, 10),
         })
         .eq("id", r.id);
       if (error) throw error;
@@ -201,6 +205,7 @@ function AdminLoans() {
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Purpose</th>
                   <th className="px-4 py-3">Months</th>
+                  <th className="px-4 py-3">Due date</th>
                   <th className="px-4 py-3">Status / Notes</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -218,6 +223,7 @@ function AdminLoans() {
                       <td className="px-4 py-3 font-semibold whitespace-nowrap">{fmt(Number(r.amount))}</td>
                       <td className="px-4 py-3 max-w-[240px]">{r.purpose}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.repayment_months ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{r.due_date ?? "—"}</td>
                       <td className="px-4 py-3 text-xs">
                         <div className="uppercase tracking-wide text-muted-foreground">{r.status}</div>
                         {r.status === "pending" ? (

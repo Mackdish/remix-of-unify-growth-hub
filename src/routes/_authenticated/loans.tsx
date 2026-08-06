@@ -23,6 +23,7 @@ type LoanRequest = {
   created_at: string;
   reviewed_at: string | null;
   disbursed_at: string | null;
+  due_date: string | null;
 };
 
 const STATUS_META: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -173,6 +174,7 @@ function LoansPage() {
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Purpose</th>
                   <th className="px-4 py-3">Months</th>
+                  <th className="px-4 py-3">Due date</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Notes</th>
                   <th className="px-4 py-3 text-right">Action</th>
@@ -187,6 +189,15 @@ function LoansPage() {
                       <td className="px-4 py-3 font-semibold">{fmt(Number(r.amount))}</td>
                       <td className="px-4 py-3">{r.purpose}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.repayment_months ?? "—"}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {r.due_date ? (
+                          <span className={new Date(r.due_date) < new Date() && r.status === "disbursed" ? "text-destructive font-medium" : "text-muted-foreground"}>
+                            {r.due_date}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] uppercase tracking-wide ${meta.className}`}>
                           {meta.icon}{meta.label}

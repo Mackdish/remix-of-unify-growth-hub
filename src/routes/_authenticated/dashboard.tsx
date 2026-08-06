@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, ShieldCheck } from "lucide-react";
+import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, ShieldCheck, FileText, Download } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -58,10 +58,19 @@ function Dashboard() {
         if (error) throw error;
         transactions = (txns ?? []) as Txn[];
       }
+      let loans: { amount: number; purpose: string; status: string; due_date: string | null; created_at: string }[] = [];
+      if (member) {
+        const { data: lr } = await supabase
+          .from("loan_requests")
+          .select("amount, purpose, status, due_date, created_at")
+          .eq("member_id", member.id)
+          .order("created_at", { ascending: false });
+        loans = (lr ?? []) as typeof loans;
+      }
       const isAdmin = (roles ?? []).some((r: { role: string }) =>
         ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
       );
-      return { member, transactions, isAdmin };
+      return { member, transactions, loans, isAdmin };
     },
   });
 
@@ -82,6 +91,22 @@ function Dashboard() {
       (map.penalty ?? 0);
     return { map, loanOutstanding, grand };
   }, [data?.transactions]);
+
+  const downloadStatement = async () => {
+    if (!data?.member) return;
+    try {
+      const { buildMemberStatementPdf } = await import("@/lib/member-statement-pdf");
+      const doc = await buildMemberStatementPdf({
+        memberName: data.member.full_name,
+        memberCode: data.member.member_code,
+        txns: data.transactions,
+        loans: data.loans ?? [],
+      });
+      doc.save(`statement-${data.member.member_code}.pdf`);
+    } catch {
+      toast.error("Could not build your statement");
+    }
+  };
 
   const signOut = async () => {
     await supabase.auth.signOut();
@@ -106,6 +131,7 @@ function Dashboard() {
           {data?.isAdmin && (
             <Link to="/admin" className="btn-primary mt-6"><ShieldCheck className="h-4 w-4" /> Go to admin dashboard</Link>
           )}
+          <Link to="/documents" className="btn-outline mt-3 mx-auto"><FileText className="h-4 w-4" /> Group documents</Link>
           <button onClick={signOut} className="btn-outline mt-3 mx-auto">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
@@ -126,6 +152,8 @@ function Dashboard() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Link to="/loans" className="btn-outline"><HandCoins className="h-4 w-4" /> My loans</Link>
+          <Link to="/documents" className="btn-outline"><FileText className="h-4 w-4" /> Documents</Link>
+          <button onClick={downloadStatement} className="btn-outline"><Download className="h-4 w-4" /> Download statement</button>
           {data.isAdmin && (
             <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
           )}
@@ -138,6 +166,18 @@ function Dashboard() {
         <div className="text-xs uppercase tracking-widest opacity-80">Total across all categories</div>
         <div className="mt-2 text-4xl md:text-5xl font-display font-bold">{fmt(totals.grand)}</div>
         <div className="mt-1 text-sm opacity-85">Loan outstanding: {fmt(totals.loanOutstanding)}</div>
+        {(() => {
+          const next = (data.loans ?? [])
+            .filter((l) => l.due_date && (l.status === "disbursed" || l.status === "approved"))
+            .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0];
+          if (!next) return null;
+          const overdue = new Date(next.due_date!) < new Date();
+          return (
+            <div className="mt-1 text-sm opacity-85">
+              {overdue ? "Loan repayment overdue since" : "Next loan due"}: {next.due_date}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Category cards */}

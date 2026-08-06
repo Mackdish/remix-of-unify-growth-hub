@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      documents: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          file_name: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          title: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          title?: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       loan_requests: {
         Row: {
           amount: number
@@ -21,6 +63,7 @@ export type Database = {
           created_by: string | null
           disbursed_at: string | null
           disbursed_transaction_id: string | null
+          due_date: string | null
           id: string
           member_id: string
           purpose: string
@@ -37,6 +80,7 @@ export type Database = {
           created_by?: string | null
           disbursed_at?: string | null
           disbursed_transaction_id?: string | null
+          due_date?: string | null
           id?: string
           member_id: string
           purpose: string
@@ -53,6 +97,7 @@ export type Database = {
           created_by?: string | null
           disbursed_at?: string | null
           disbursed_transaction_id?: string | null
+          due_date?: string | null
           id?: string
           member_id?: string
           purpose?: string
