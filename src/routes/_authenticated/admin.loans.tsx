@@ -129,12 +129,15 @@ function AdminLoans() {
         .select("id")
         .single();
       if (txnErr) throw txnErr;
+      const due = new Date();
+      due.setMonth(due.getMonth() + (r.repayment_months ?? 3));
       const { error } = await supabase
         .from("loan_requests")
         .update({
           status: "disbursed",
           disbursed_at: new Date().toISOString(),
           disbursed_transaction_id: txn.id,
+          due_date: due.toISOString().slice(0, 10),
         })
         .eq("id", r.id);
       if (error) throw error;
