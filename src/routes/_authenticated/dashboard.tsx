@@ -166,6 +166,18 @@ function Dashboard() {
         <div className="text-xs uppercase tracking-widest opacity-80">Total across all categories</div>
         <div className="mt-2 text-4xl md:text-5xl font-display font-bold">{fmt(totals.grand)}</div>
         <div className="mt-1 text-sm opacity-85">Loan outstanding: {fmt(totals.loanOutstanding)}</div>
+        {(() => {
+          const next = (data.loans ?? [])
+            .filter((l) => l.due_date && (l.status === "disbursed" || l.status === "approved"))
+            .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0];
+          if (!next) return null;
+          const overdue = new Date(next.due_date!) < new Date();
+          return (
+            <div className="mt-1 text-sm opacity-85">
+              {overdue ? "Loan repayment overdue since" : "Next loan due"}: {next.due_date}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Category cards */}
