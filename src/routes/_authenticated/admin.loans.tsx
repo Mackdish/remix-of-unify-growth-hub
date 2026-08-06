@@ -24,6 +24,7 @@ type LoanRequest = {
   reviewed_at: string | null;
   disbursed_at: string | null;
   disbursed_transaction_id: string | null;
+  due_date: string | null;
 };
 
 const TABS: { key: LoanRequest["status"] | "all"; label: string }[] = [
