@@ -231,6 +231,8 @@ function AdminDashboard() {
       {/* Add member + Approve accounts */}
       <AddMemberCard />
       <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
+      <MemberCredentialsCard members={members ?? []} />
+
 
 
 
