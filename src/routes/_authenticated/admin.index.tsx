@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { createMemberCredentials, resetMemberPassword } from "@/lib/member-accounts.functions";
+import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
   ShieldCheck,
@@ -22,6 +23,7 @@ import {
   HandCoins,
   Settings,
   KeyRound,
+  Send,
 } from "lucide-react";
 
 
@@ -234,6 +236,7 @@ function AdminDashboard() {
       {/* Add member + Approve accounts */}
       <AddMemberCard />
       <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
+      <InviteMembersCard members={members ?? []} />
       <MemberCredentialsCard members={members ?? []} />
 
 
@@ -804,6 +807,275 @@ function MemberCredentialsCard({ members }: { members: MemberLite[] }) {
               </p>
             </div>
           )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InviteMembersCard({ members }: { members: MemberLite[] }) {
+  const qc = useQueryClient();
+  const create = useServerFn(createMemberInvite);
+  const revoke = useServerFn(revokeMemberInvite);
+  const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [memberCode, setMemberCode] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [role, setRole] = useState("member");
+  const [memberId, setMemberId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [lastLink, setLastLink] = useState<{ url: string; phone: string; emailSent: boolean } | null>(null);
+
+  const { data: invites } = useQuery({
+    queryKey: ["member-invites"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("member_invites")
+        .select("id, full_name, email, phone, role, token, expires_at, accepted_at, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const unlinkedMembers = members.filter((m) => !m.user_id);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email && !phone) return toast.error("Add an email address or a phone number");
+    setBusy(true);
+    try {
+      const res = await create({
+        data: {
+          fullName: fullName || members.find((m) => m.id === memberId)?.full_name || "",
+          memberCode,
+          email,
+          phone,
+          role: role as "member",
+          memberId,
+        },
+      });
+      const url = `${window.location.origin}/invite/${res.token}`;
+      setLastLink({ url, phone, emailSent: res.emailSent });
+      toast.success(
+        res.emailSent ? "Invitation sent by email" : "Invite link created — share it with them",
+      );
+      if (res.emailWarning) toast.error(`Email not sent: ${res.emailWarning}`);
+      setFullName("");
+      setMemberCode("");
+      setEmail("");
+      setPhone("");
+      setMemberId("");
+      qc.invalidateQueries({ queryKey: ["member-invites"] });
+      qc.invalidateQueries({ queryKey: ["admin-members"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create invitation");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async (id: string) => {
+    try {
+      await revoke({ data: { id } });
+      toast.success("Invitation cancelled");
+      qc.invalidateQueries({ queryKey: ["member-invites"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not cancel");
+    }
+  };
+
+  const pending = (invites ?? []).filter((i) => !i.accepted_at);
+
+  return (
+    <section className="mt-4 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
+      <div className="flex justify-between items-center gap-3 flex-wrap">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" /> Invite members
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Invite by email or phone — they set their own password on a secure one-time link.
+          </p>
+        </div>
+        <button onClick={() => setOpen((v) => !v)} className="btn-outline !py-2 !px-4 text-sm">
+          <Send className="h-4 w-4" /> {open ? "Close" : `Invite (${pending.length} pending)`}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-5 space-y-6">
+          <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
+            <select
+              value={memberId}
+              onChange={(e) => {
+                setMemberId(e.target.value);
+                const m = members.find((mm) => mm.id === e.target.value);
+                if (m) {
+                  setFullName(m.full_name);
+                  setMemberCode(m.member_code);
+                }
+              }}
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm md:col-span-2"
+            >
+              <option value="">New person (not yet a member record)</option>
+              {unlinkedMembers.map((m) => (
+                <option key={m.id} value={m.id}>
+                  Existing: {m.member_code} — {m.full_name}
+                </option>
+              ))}
+            </select>
+            <input
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Full name"
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              value={memberCode}
+              onChange={(e) => setMemberCode(e.target.value)}
+              placeholder="Member code (optional)"
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email (sends the invite automatically)"
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Phone e.g. +254703977431 (share link via SMS/WhatsApp)"
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            >
+              <option value="member">Member</option>
+              <option value="treasurer">Treasurer</option>
+              <option value="secretary">Secretary</option>
+              <option value="project_manager">Project manager</option>
+            </select>
+            <button disabled={busy} type="submit" className="btn-primary text-sm disabled:opacity-60">
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Send invitation
+            </button>
+          </form>
+
+          {lastLink && (
+            <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
+              <div className="font-semibold text-foreground">
+                {lastLink.emailSent ? "Emailed — you can also share this link" : "Share this invite link"}
+              </div>
+              <div className="mt-1 font-mono text-xs break-all">{lastLink.url}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(lastLink.url);
+                    toast.success("Link copied");
+                  }}
+                  className="btn-outline !py-1.5 !px-3 text-xs"
+                >
+                  Copy link
+                </button>
+                {lastLink.phone && (
+                  <a
+                    href={`https://wa.me/${lastLink.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                      `Karibu Unify Youth Group! Activate your member account here: ${lastLink.url}`,
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-outline !py-1.5 !px-3 text-xs"
+                  >
+                    Send on WhatsApp
+                  </a>
+                )}
+                {lastLink.phone && (
+                  <a
+                    href={`sms:${lastLink.phone}?&body=${encodeURIComponent(
+                      `Activate your Unify Youth Group account: ${lastLink.url}`,
+                    )}`}
+                    className="btn-outline !py-1.5 !px-3 text-xs"
+                  >
+                    Send by SMS
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Invitations</h3>
+            {(invites ?? []).length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">No invitations yet.</p>
+            ) : (
+              <div className="mt-2 overflow-x-auto rounded-lg border border-border">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary text-left text-xs uppercase tracking-wide">
+                    <tr>
+                      <th className="px-3 py-2">Person</th>
+                      <th className="px-3 py-2">Sent to</th>
+                      <th className="px-3 py-2">Role</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {(invites ?? []).map((i) => {
+                      const expired = !i.accepted_at && new Date(i.expires_at) < new Date();
+                      return (
+                        <tr key={i.id}>
+                          <td className="px-3 py-2 font-medium text-foreground">{i.full_name}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {i.email ?? "—"}
+                            {i.phone ? <div>{i.phone}</div> : null}
+                          </td>
+                          <td className="px-3 py-2 text-xs uppercase tracking-wide">{i.role}</td>
+                          <td className="px-3 py-2 text-xs">
+                            {i.accepted_at ? (
+                              <span className="text-primary">Accepted</span>
+                            ) : expired ? (
+                              <span className="text-destructive">Expired</span>
+                            ) : (
+                              <span className="text-muted-foreground">Pending</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right space-x-2">
+                            {!i.accepted_at && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(
+                                      `${window.location.origin}/invite/${i.token}`,
+                                    );
+                                    toast.success("Link copied");
+                                  }}
+                                  className="text-xs underline text-muted-foreground"
+                                >
+                                  Copy link
+                                </button>
+                                <button
+                                  onClick={() => cancel(i.id)}
+                                  className="text-xs underline text-destructive"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </section>
