@@ -17,6 +17,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as AuthenticatedLoansRouteImport } from './routes/_authenticated/loans'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -67,6 +68,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteTokenRoute = InviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedLoansRoute = AuthenticatedLoansRouteImport.update({
@@ -147,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/loans': typeof AuthenticatedLoansRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/admin/ledger': typeof AuthenticatedAdminLedgerRoute
   '/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/admin/report-preview': typeof AuthenticatedAdminReportPreviewRoute
@@ -168,6 +175,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/loans': typeof AuthenticatedLoansRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/admin/ledger': typeof AuthenticatedAdminLedgerRoute
   '/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/admin/report-preview': typeof AuthenticatedAdminReportPreviewRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
   '/_authenticated/loans': typeof AuthenticatedLoansRoute
+  '/invite/$token': typeof InviteTokenRoute
   '/_authenticated/admin/ledger': typeof AuthenticatedAdminLedgerRoute
   '/_authenticated/admin/loans': typeof AuthenticatedAdminLoansRoute
   '/_authenticated/admin/report-preview': typeof AuthenticatedAdminReportPreviewRoute
@@ -214,6 +223,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/documents'
     | '/loans'
+    | '/invite/$token'
     | '/admin/ledger'
     | '/admin/loans'
     | '/admin/report-preview'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/documents'
     | '/loans'
+    | '/invite/$token'
     | '/admin/ledger'
     | '/admin/loans'
     | '/admin/report-preview'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/documents'
     | '/_authenticated/loans'
+    | '/invite/$token'
     | '/_authenticated/admin/ledger'
     | '/_authenticated/admin/loans'
     | '/_authenticated/admin/report-preview'
@@ -277,6 +289,7 @@ export interface RootRouteChildren {
   GalleryRoute: typeof GalleryRoute
   ProjectsRoute: typeof ProjectsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  InviteTokenRoute: typeof InviteTokenRoute
   ApiPublicHooksMonthlyReportRoute: typeof ApiPublicHooksMonthlyReportRoute
 }
 
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite/$token': {
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/loans': {
@@ -465,6 +485,7 @@ const rootRouteChildren: RootRouteChildren = {
   GalleryRoute: GalleryRoute,
   ProjectsRoute: ProjectsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  InviteTokenRoute: InviteTokenRoute,
   ApiPublicHooksMonthlyReportRoute: ApiPublicHooksMonthlyReportRoute,
 }
 export const routeTree = rootRouteImport
