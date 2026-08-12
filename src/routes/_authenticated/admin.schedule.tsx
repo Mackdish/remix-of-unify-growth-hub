@@ -1,7 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { ArrowLeft, CalendarClock, Loader2, Save, CheckCircle2 } from "lucide-react";
 
@@ -41,26 +42,10 @@ type Settings = {
 };
 
 function ScheduleSettings() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
 
-  const { data: role, isLoading: roleLoading } = useQuery({
-    queryKey: ["my-roles"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return { admin: false, super: false };
-      const { data } = await supabase.from("user_roles").select("role").eq("user_id", u.user.id);
-      const roles = (data ?? []).map((r) => r.role as string);
-      return {
-        admin: roles.some((r) => ["super_admin", "treasurer", "secretary", "project_manager"].includes(r)),
-        super: roles.includes("super_admin"),
-      };
-    },
-  });
-
-  useEffect(() => {
-    if (!roleLoading && role && !role.admin) navigate({ to: "/dashboard" });
-  }, [role, roleLoading, navigate]);
+  const { can, allowed, loading: roleLoading } = useRequirePermission("view_reports");
+  const role = { admin: allowed, super: can("manage_schedule") };
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["report-schedule"],
@@ -73,7 +58,7 @@ function ScheduleSettings() {
       if (error) throw error;
       return data as Settings | null;
     },
-    enabled: !!role?.admin,
+    enabled: role.admin,
   });
 
   const [form, setForm] = useState<Settings | null>(null);
@@ -81,7 +66,7 @@ function ScheduleSettings() {
     if (settings) setForm(settings);
   }, [settings]);
 
-  const canEdit = !!role?.super;
+  const canEdit = role.super;
 
   const save = useMutation({
     mutationFn: async () => {

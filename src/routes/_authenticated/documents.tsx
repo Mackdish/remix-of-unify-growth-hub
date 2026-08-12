@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { FileText, ArrowLeft, Upload, Download, Trash2, Loader2 } from "lucide-react";
 
@@ -48,17 +49,8 @@ function DocumentsPage() {
   const [form, setForm] = useState({ title: "", category: "minutes", description: "" });
   const [file, setFile] = useState<File | null>(null);
 
-  const { data: isAdmin } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
+  const { can } = usePermissions();
+  const isAdmin = can("manage_documents");
 
   const { data: docs, isLoading } = useQuery({
     queryKey: ["documents"],

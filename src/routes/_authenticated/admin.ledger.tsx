@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { Plus, ShieldCheck, ArrowLeft, Search, Link2, Trash2, Loader2 } from "lucide-react";
 
@@ -34,24 +35,10 @@ function AdminLedger() {
   const [memberId, setMemberId] = useState<string>("all");
 
   // Guard: only admins allowed
-  const { data: isAdmin, isLoading: checking } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && isAdmin === false) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [isAdmin, checking, navigate]);
+  const { can, allowed, loading: checking } = useRequirePermission("view_finances");
+  const isAdmin = allowed;
+  const canManage = can("manage_finances");
+  const canLinkMembers = can("manage_members");
 
   const { data: members } = useQuery({
     queryKey: ["members-all"],
@@ -130,7 +117,7 @@ function AdminLedger() {
             <ShieldCheck className="h-4 w-4" /> Admin
           </div>
           <h1 className="mt-1 text-3xl md:text-4xl text-foreground">Transaction ledger</h1>
-          <p className="text-sm text-muted-foreground mt-1">Group-wide financial ledger. Add, edit, or remove entries.</p>
+          <p className="text-sm text-muted-foreground mt-1">Group-wide financial ledger.</p>
         </div>
         <Link to="/dashboard" className="btn-outline"><ArrowLeft className="h-4 w-4" /> My dashboard</Link>
       </div>
@@ -145,11 +132,17 @@ function AdminLedger() {
         ))}
       </div>
 
-      {/* Add transaction form */}
-      <AddTransactionForm members={members ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ["txns-all"] })} />
+      {canManage ? (
+        <AddTransactionForm members={members ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ["txns-all"] })} />
+      ) : (
+        <div className="mt-6 rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
+          You have view-only access to the ledger. Adding or removing entries is limited to the treasurer and super admins.
+        </div>
+      )}
 
-      {/* Member linking */}
-      <MembersLinkPanel members={members ?? []} onChanged={() => qc.invalidateQueries({ queryKey: ["members-all"] })} />
+      {canLinkMembers && (
+        <MembersLinkPanel members={members ?? []} onChanged={() => qc.invalidateQueries({ queryKey: ["members-all"] })} />
+      )}
 
       {/* Filters */}
       <div className="mt-8 flex flex-wrap gap-3 items-end">
@@ -213,11 +206,11 @@ function AdminLedger() {
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">{fmt(Number(t.amount))}</td>
                       <td className="px-4 py-3 text-right">
-                        <button
+                        {canManage && <button
                           disabled={del.isPending}
                           onClick={() => { if (confirm("Delete this transaction?")) del.mutate(t.id); }}
                           className="text-destructive hover:opacity-80"
-                        ><Trash2 className="h-4 w-4" /></button>
+                        ><Trash2 className="h-4 w-4" /></button>}
                       </td>
                     </tr>
                   );

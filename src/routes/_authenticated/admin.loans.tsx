@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { HandCoins, ShieldCheck, ArrowLeft, CheckCircle2, XCircle, Wallet, Loader2 } from "lucide-react";
 
@@ -42,24 +43,9 @@ function AdminLoans() {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("pending");
   const [notes, setNotes] = useState<Record<string, string>>({});
 
-  const { data: isAdmin, isLoading: checking } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && isAdmin === false) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [isAdmin, checking, navigate]);
+  const { can, allowed, loading: checking } = useRequirePermission("view_finances");
+  const isAdmin = allowed;
+  const canReview = can("manage_loans");
 
   const { data: members } = useQuery({
     queryKey: ["admin-loan-members"],
@@ -177,6 +163,12 @@ function AdminLoans() {
         <Link to="/admin" className="btn-outline"><ArrowLeft className="h-4 w-4" /> Admin dashboard</Link>
       </div>
 
+      {!canReview && (
+        <div className="mt-5 rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
+          You have view-only access to loan requests. Approving, rejecting and disbursing is limited to the treasurer and super admins.
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
@@ -239,7 +231,7 @@ function AdminLoans() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right space-y-1">
-                        {r.status === "pending" && (
+                        {canReview && r.status === "pending" && (
                           <div className="flex gap-1 justify-end">
                             <button
                               disabled={review.isPending}
@@ -257,7 +249,7 @@ function AdminLoans() {
                             </button>
                           </div>
                         )}
-                        {r.status === "approved" && (
+                        {canReview && r.status === "approved" && (
                           <button
                             disabled={disburse.isPending}
                             onClick={() => disburse.mutate(r)}

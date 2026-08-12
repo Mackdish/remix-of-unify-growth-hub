@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
+import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
 import { createMemberCredentials, resetMemberPassword } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
@@ -55,29 +57,9 @@ const CAT_LABEL: Record<string, string> = {
 };
 
 function AdminDashboard() {
-  const navigate = useNavigate();
 
-  const { data: isAdmin, isLoading: checking } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && isAdmin === false) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [isAdmin, checking, navigate]);
+  const { can, allowed, loading: checking, roles } = useRequirePermission("view_admin");
+  const isAdmin = allowed;
 
   const { data: members } = useQuery({
     queryKey: ["admin-members"],
@@ -182,62 +164,66 @@ function AdminDashboard() {
 
       {/* Quick actions */}
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <ActionCard
+        {can("view_finances") && <ActionCard
           to="/admin/ledger"
           icon={<BookOpen className="h-5 w-5" />}
           title="Transaction ledger"
           description="Add, filter, or remove entries across all categories."
-        />
-        <ActionCard
+        />}
+        {can("view_reports") && <ActionCard
           to="/admin/reports"
           icon={<FileBarChart className="h-5 w-5" />}
           title="Reports"
           description="Monthly, loans, penalties, contributions, and more."
-        />
-        <ActionCard
+        />}
+        {can("manage_roles") && <ActionCard
           to="/admin/roles"
           icon={<ShieldCheck className="h-5 w-5" />}
           title="Role management"
           description="Assign or revoke admin permissions (super admin only)."
-        />
-        <ActionCard
+        />}
+        {can("view_finances") && <ActionCard
           to="/admin/loans"
           icon={<HandCoins className="h-5 w-5" />}
           title="Loan approvals"
           description="Review, approve, reject, and disburse member loan requests."
-        />
-        <ActionCard
+        />}
+        {can("view_reports") && <ActionCard
           to="/admin/schedule"
           icon={<FileBarChart className="h-5 w-5" />}
           title="Report schedule"
           description="Configure the day & time monthly PDF reports are sent to admins."
-        />
-        <ActionCard
+        />}
+        {can("view_reports") && <ActionCard
           to="/admin/report-preview"
           icon={<FileBarChart className="h-5 w-5" />}
           title="Preview monthly PDF"
           description="See the branded monthly report exactly as admins receive it."
-        />
-        <ActionCard
+        />}
+        {can("manage_documents") && <ActionCard
           to="/documents"
           icon={<FileBarChart className="h-5 w-5" />}
           title="Documents library"
           description="Upload minutes, policies, the constitution and other papers for members."
-        />
-        <ActionCard
+        />}
+        {can("manage_content") && <ActionCard
           to="/admin/settings"
           icon={<Settings className="h-5 w-5" />}
           title="Control panel"
           description="Site settings, notice marquee, photo uploads, and users."
-        />
+        />}
       </div>
 
 
       {/* Add member + Approve accounts */}
-      <AddMemberCard />
-      <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
-      <InviteMembersCard members={members ?? []} />
-      <MemberCredentialsCard members={members ?? []} />
+      {can("manage_members") && <AddMemberCard />}
+      {can("manage_members") && (
+        <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
+      )}
+      {can("invite_members") && <InviteMembersCard members={members ?? []} />}
+      {can("invite_members") && <MemberCredentialsCard members={members ?? []} />}
+
+      <MyAccessCard roles={roles} />
 
 
 
@@ -1078,6 +1064,38 @@ function InviteMembersCard({ members }: { members: MemberLite[] }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+
+/* ---------------- My access ---------------- */
+function MyAccessCard({ roles }: { roles: string[] }) {
+  const perms = (Object.keys(PERMISSION_MATRIX) as Permission[]).filter((p) =>
+    (PERMISSION_MATRIX[p] as string[]).some((r) => roles.includes(r)),
+  );
+  return (
+    <section className="mt-8 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
+      <h2 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
+        <ShieldCheck className="h-5 w-5 text-primary" /> My access
+      </h2>
+      <p className="text-xs text-muted-foreground mt-0.5">
+        What your role allows on this admin dashboard.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {roles.map((r) => (
+          <span key={r} className="rounded-full bg-primary/10 text-primary text-xs font-semibold px-3 py-1">
+            {ROLE_LABEL[r as keyof typeof ROLE_LABEL] ?? r}
+          </span>
+        ))}
+      </div>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm text-muted-foreground">
+        {perms.map((p) => (
+          <li key={p} className="inline-flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" /> {PERMISSION_LABEL[p]}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
