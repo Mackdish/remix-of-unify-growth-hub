@@ -163,6 +163,12 @@ function AdminLoans() {
         <Link to="/admin" className="btn-outline"><ArrowLeft className="h-4 w-4" /> Admin dashboard</Link>
       </div>
 
+      {!canReview && (
+        <div className="mt-5 rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
+          You have view-only access to loan requests. Approving, rejecting and disbursing is limited to the treasurer and super admins.
+        </div>
+      )}
+
       <div className="mt-6 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
@@ -225,7 +231,7 @@ function AdminLoans() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right space-y-1">
-                        {r.status === "pending" && (
+                        {canReview && r.status === "pending" && (
                           <div className="flex gap-1 justify-end">
                             <button
                               disabled={review.isPending}
@@ -243,7 +249,7 @@ function AdminLoans() {
                             </button>
                           </div>
                         )}
-                        {r.status === "approved" && (
+                        {canReview && r.status === "approved" && (
                           <button
                             disabled={disburse.isPending}
                             onClick={() => disburse.mutate(r)}

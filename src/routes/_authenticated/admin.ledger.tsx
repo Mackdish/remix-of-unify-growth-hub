@@ -38,6 +38,7 @@ function AdminLedger() {
   const { can, allowed, loading: checking } = useRequirePermission("view_finances");
   const isAdmin = allowed;
   const canManage = can("manage_finances");
+  const canLinkMembers = can("manage_members");
 
   const { data: members } = useQuery({
     queryKey: ["members-all"],
@@ -116,7 +117,7 @@ function AdminLedger() {
             <ShieldCheck className="h-4 w-4" /> Admin
           </div>
           <h1 className="mt-1 text-3xl md:text-4xl text-foreground">Transaction ledger</h1>
-          <p className="text-sm text-muted-foreground mt-1">Group-wide financial ledger. Add, edit, or remove entries.</p>
+          <p className="text-sm text-muted-foreground mt-1">Group-wide financial ledger.</p>
         </div>
         <Link to="/dashboard" className="btn-outline"><ArrowLeft className="h-4 w-4" /> My dashboard</Link>
       </div>
@@ -131,11 +132,17 @@ function AdminLedger() {
         ))}
       </div>
 
-      {/* Add transaction form */}
-      <AddTransactionForm members={members ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ["txns-all"] })} />
+      {canManage ? (
+        <AddTransactionForm members={members ?? []} onSaved={() => qc.invalidateQueries({ queryKey: ["txns-all"] })} />
+      ) : (
+        <div className="mt-6 rounded-xl border border-border bg-secondary/50 px-4 py-3 text-sm text-muted-foreground">
+          You have view-only access to the ledger. Adding or removing entries is limited to the treasurer and super admins.
+        </div>
+      )}
 
-      {/* Member linking */}
-      <MembersLinkPanel members={members ?? []} onChanged={() => qc.invalidateQueries({ queryKey: ["members-all"] })} />
+      {canLinkMembers && (
+        <MembersLinkPanel members={members ?? []} onChanged={() => qc.invalidateQueries({ queryKey: ["members-all"] })} />
+      )}
 
       {/* Filters */}
       <div className="mt-8 flex flex-wrap gap-3 items-end">
@@ -199,11 +206,11 @@ function AdminLedger() {
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">{fmt(Number(t.amount))}</td>
                       <td className="px-4 py-3 text-right">
-                        <button
+                        {canManage && <button
                           disabled={del.isPending}
                           onClick={() => { if (confirm("Delete this transaction?")) del.mutate(t.id); }}
                           className="text-destructive hover:opacity-80"
-                        ><Trash2 className="h-4 w-4" /></button>
+                        ><Trash2 className="h-4 w-4" /></button>}
                       </td>
                     </tr>
                   );
