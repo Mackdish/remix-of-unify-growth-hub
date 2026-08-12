@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { Plus, ShieldCheck, ArrowLeft, Search, Link2, Trash2, Loader2 } from "lucide-react";
 
@@ -34,24 +35,9 @@ function AdminLedger() {
   const [memberId, setMemberId] = useState<string>("all");
 
   // Guard: only admins allowed
-  const { data: isAdmin, isLoading: checking } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && isAdmin === false) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [isAdmin, checking, navigate]);
+  const { can, allowed, loading: checking } = useRequirePermission("view_finances");
+  const isAdmin = allowed;
+  const canManage = can("manage_finances");
 
   const { data: members } = useQuery({
     queryKey: ["members-all"],

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -77,24 +78,8 @@ function ReportsPage() {
   const [from, setFrom] = useState(new Date(today.getFullYear(), 0, 1).toISOString().slice(0, 10));
   const [to, setTo] = useState(today.toISOString().slice(0, 10));
 
-  const { data: isAdmin, isLoading: checking } = useQuery({
-    queryKey: ["is-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return false;
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      return (roles ?? []).some((r: { role: string }) =>
-        ["super_admin", "treasurer", "secretary", "project_manager"].includes(r.role),
-      );
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && isAdmin === false) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [isAdmin, checking, navigate]);
+  const { can, allowed, loading: checking } = useRequirePermission("view_reports");
+  const isAdmin = allowed;
 
   const { data: members } = useQuery({
     queryKey: ["report-members"],
