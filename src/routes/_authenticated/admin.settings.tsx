@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRequirePermission } from "@/hooks/use-permissions";
 import { toast } from "sonner";
 import {
   ShieldCheck,
@@ -30,30 +31,10 @@ export const Route = createFileRoute("/_authenticated/admin/settings")({
 const CATEGORIES = ["gallery", "projects", "hero"] as const;
 
 function ControlPanel() {
-  const navigate = useNavigate();
+  const { can, allowed, loading: checking, isSuperAdmin } = useRequirePermission("manage_content");
+  const canEditSettings = can("manage_settings");
 
-  const { data: access, isLoading: checking } = useQuery({
-    queryKey: ["admin-access-roles"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return { isAdmin: false, isSuper: false };
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", data.user.id);
-      const list = (roles ?? []).map((r: { role: string }) => r.role);
-      return {
-        isAdmin: list.some((r) => ["super_admin", "treasurer", "secretary", "project_manager"].includes(r)),
-        isSuper: list.includes("super_admin"),
-      };
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && access && !access.isAdmin) {
-      toast.error("Admin access required");
-      navigate({ to: "/dashboard" });
-    }
-  }, [access, checking, navigate]);
-
-  if (checking || !access?.isAdmin) {
+  if (checking || !allowed) {
     return <div className="container-page py-24 text-center text-muted-foreground">Checking access…</div>;
   }
 
@@ -72,7 +53,7 @@ function ControlPanel() {
         <Link to="/admin" className="btn-outline"><ArrowLeft className="h-4 w-4" /> Admin dashboard</Link>
       </div>
 
-      <SettingsCard isSuper={access.isSuper} />
+      <SettingsCard isSuper={canEditSettings || isSuperAdmin} />
       <NoticesCard />
       <ImagesCard />
 
@@ -84,8 +65,15 @@ function ControlPanel() {
           Add members, approve their accounts, invite admins, and manage roles.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <Link to="/admin" className="btn-outline !py-2 !px-4 text-sm">Add / approve members</Link>
-          <Link to="/admin/roles" className="btn-primary !py-2 !px-4 text-sm">Invite admins & roles</Link>
+          {can("manage_members") && (
+            <Link to="/admin" className="btn-outline !py-2 !px-4 text-sm">Add / approve members</Link>
+          )}
+          {can("manage_roles") && (
+            <Link to="/admin/roles" className="btn-primary !py-2 !px-4 text-sm">Invite admins & roles</Link>
+          )}
+          {!can("manage_members") && !can("manage_roles") && (
+            <span className="text-sm text-muted-foreground">Your role doesn't include user management.</span>
+          )}
         </div>
       </section>
     </div>
