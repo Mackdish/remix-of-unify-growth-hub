@@ -128,10 +128,8 @@ function Dashboard() {
             Your login is active, but it isn't yet linked to a member record. Please contact the group
             administrator so they can link your account and give you access to your financial dashboard.
           </p>
-          {data?.isAdmin && (
-            <Link to="/admin" className="btn-primary mt-6"><ShieldCheck className="h-4 w-4" /> Go to admin dashboard</Link>
-          )}
-          <Link to="/documents" className="btn-outline mt-3 mx-auto"><FileText className="h-4 w-4" /> Group documents</Link>
+          <Link to="/documents" className="btn-outline mt-6 mx-auto"><FileText className="h-4 w-4" /> Group documents</Link>
+
           <button onClick={signOut} className="btn-outline mt-3 mx-auto">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
