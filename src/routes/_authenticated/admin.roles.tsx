@@ -1,11 +1,12 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ShieldCheck, ArrowLeft, Trash2, Plus, Search, UserCog, Mail, X } from "lucide-react";
 import { inviteAdmin, revokeInvite } from "@/lib/invites.functions";
+import { useRequirePermission } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/_authenticated/admin/roles")({
   head: () => ({
@@ -46,7 +47,6 @@ const ROLE_DESC: Record<AppRole, string> = {
 const ADMIN_ROLES: AppRole[] = ["super_admin", "treasurer", "secretary", "project_manager"];
 
 function RolesPage() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<string>("");
@@ -56,26 +56,9 @@ function RolesPage() {
   const inviteFn = useServerFn(inviteAdmin);
   const revokeInviteFn = useServerFn(revokeInvite);
 
-  const { data: me, isLoading: checking } = useQuery({
-    queryKey: ["is-super-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return { userId: null as string | null, isSuper: false };
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id);
-      const isSuper = (roles ?? []).some((r: { role: string }) => r.role === "super_admin");
-      return { userId: data.user.id, isSuper };
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && me && !me.isSuper) {
-      toast.error("Super admin access required");
-      navigate({ to: "/admin" });
-    }
-  }, [me, checking, navigate]);
+  const perms = useRequirePermission("manage_roles");
+  const checking = perms.loading;
+  const me = { userId: perms.userId, isSuper: perms.allowed };
 
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["users-with-roles"],
@@ -87,6 +70,7 @@ function RolesPage() {
     },
     enabled: !!me?.isSuper,
   });
+
 
   const assign = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {

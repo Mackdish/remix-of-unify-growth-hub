@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, ShieldCheck, FileText, Download } from "lucide-react";
+import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, FileText, Download } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -128,10 +128,8 @@ function Dashboard() {
             Your login is active, but it isn't yet linked to a member record. Please contact the group
             administrator so they can link your account and give you access to your financial dashboard.
           </p>
-          {data?.isAdmin && (
-            <Link to="/admin" className="btn-primary mt-6"><ShieldCheck className="h-4 w-4" /> Go to admin dashboard</Link>
-          )}
-          <Link to="/documents" className="btn-outline mt-3 mx-auto"><FileText className="h-4 w-4" /> Group documents</Link>
+          <Link to="/documents" className="btn-outline mt-6 mx-auto"><FileText className="h-4 w-4" /> Group documents</Link>
+
           <button onClick={signOut} className="btn-outline mt-3 mx-auto">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
@@ -154,9 +152,7 @@ function Dashboard() {
           <Link to="/loans" className="btn-outline"><HandCoins className="h-4 w-4" /> My loans</Link>
           <Link to="/documents" className="btn-outline"><FileText className="h-4 w-4" /> Documents</Link>
           <button onClick={downloadStatement} className="btn-outline"><Download className="h-4 w-4" /> Download statement</button>
-          {data.isAdmin && (
-            <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
-          )}
+
           <button onClick={signOut} className="btn-outline"><LogOut className="h-4 w-4" /> Sign out</button>
         </div>
       </div>
