@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ShieldCheck, ArrowLeft, Trash2, Plus, Search, UserCog, Mail, X } from "lucide-react";
 import { inviteAdmin, revokeInvite } from "@/lib/invites.functions";
+import { useRequirePermission } from "@/hooks/use-permissions";
 
 export const Route = createFileRoute("/_authenticated/admin/roles")({
   head: () => ({
