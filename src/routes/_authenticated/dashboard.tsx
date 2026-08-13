@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, ShieldCheck, FileText, Download } from "lucide-react";
+import { HandCoins, TrendingUp, AlertTriangle, Wallet, PiggyBank, Shirt, Percent, ClipboardList, LogOut, FileText, Download } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
