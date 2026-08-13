@@ -56,26 +56,9 @@ function RolesPage() {
   const inviteFn = useServerFn(inviteAdmin);
   const revokeInviteFn = useServerFn(revokeInvite);
 
-  const { data: me, isLoading: checking } = useQuery({
-    queryKey: ["is-super-admin"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) return { userId: null as string | null, isSuper: false };
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", data.user.id);
-      const isSuper = (roles ?? []).some((r: { role: string }) => r.role === "super_admin");
-      return { userId: data.user.id, isSuper };
-    },
-  });
-
-  useEffect(() => {
-    if (!checking && me && !me.isSuper) {
-      toast.error("Super admin access required");
-      navigate({ to: "/admin" });
-    }
-  }, [me, checking, navigate]);
+  const perms = useRequirePermission("manage_roles");
+  const checking = perms.loading;
+  const me = { userId: perms.userId, isSuper: perms.allowed };
 
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["users-with-roles"],
@@ -87,6 +70,7 @@ function RolesPage() {
     },
     enabled: !!me?.isSuper,
   });
+
 
   const assign = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
