@@ -152,9 +152,7 @@ function Dashboard() {
           <Link to="/loans" className="btn-outline"><HandCoins className="h-4 w-4" /> My loans</Link>
           <Link to="/documents" className="btn-outline"><FileText className="h-4 w-4" /> Documents</Link>
           <button onClick={downloadStatement} className="btn-outline"><Download className="h-4 w-4" /> Download statement</button>
-          {data.isAdmin && (
-            <Link to="/admin" className="btn-outline"><ShieldCheck className="h-4 w-4" /> Admin dashboard</Link>
-          )}
+
           <button onClick={signOut} className="btn-outline"><LogOut className="h-4 w-4" /> Sign out</button>
         </div>
       </div>
