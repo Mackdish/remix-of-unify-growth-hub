@@ -1,7 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ShieldCheck, ArrowLeft, Trash2, Plus, Search, UserCog, Mail, X } from "lucide-react";
@@ -47,7 +47,6 @@ const ROLE_DESC: Record<AppRole, string> = {
 const ADMIN_ROLES: AppRole[] = ["super_admin", "treasurer", "secretary", "project_manager"];
 
 function RolesPage() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<string>("");
