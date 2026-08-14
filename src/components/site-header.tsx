@@ -44,13 +44,20 @@ export function SiteHeader() {
 
         <div className="hidden md:flex items-center gap-2">
           {user ? (
-            <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
-              <LayoutDashboard className="h-4 w-4" /> My dashboard
-            </Link>
+            isAdmin ? (
+              <Link to="/admin" className="btn-primary !py-2 !px-4 text-sm">
+                <ShieldCheck className="h-4 w-4" /> Admin panel
+              </Link>
+            ) : (
+              <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
+                <LayoutDashboard className="h-4 w-4" /> My dashboard
+              </Link>
+            )
           ) : (
             <Link to="/auth" className="btn-outline !py-2 !px-4 text-sm">Member Login</Link>
           )}
         </div>
+
 
         <button
           className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md border border-border"
