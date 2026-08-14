@@ -19,6 +19,15 @@ export const Route = createFileRoute("/auth")({
   component: Auth,
 });
 
+const ADMIN_ROLE_NAMES = ["super_admin", "treasurer", "secretary", "project_manager"];
+
+/** Admins land in the admin panel, everyone else in the member portal. */
+async function landingRoute(userId: string): Promise<"/admin" | "/dashboard"> {
+  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+  const isAdmin = (data ?? []).some((r) => ADMIN_ROLE_NAMES.includes(r.role as string));
+  return isAdmin ? "/admin" : "/dashboard";
+}
+
 function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -27,8 +36,9 @@ function Auth() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/dashboard", replace: true });
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      navigate({ to: await landingRoute(data.user.id), replace: true });
     });
   }, [navigate]);
 
@@ -37,9 +47,10 @@ function Auth() {
     setBusy(true);
     try {
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back");
+        navigate({ to: await landingRoute(data.user.id), replace: true });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -48,10 +59,29 @@ function Auth() {
         });
         if (error) throw error;
         toast.success("Account created. If email confirmation is required, check your inbox.");
+        navigate({ to: "/dashboard", replace: true });
       }
-      navigate({ to: "/dashboard", replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign-in failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const forgot = async () => {
+    if (!email) {
+      toast.error("Enter your email first, then tap “Forgot password”.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth`,
+      });
+      if (error) throw error;
+      toast.success("Password reset link sent — check your inbox.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send reset email");
     } finally {
       setBusy(false);
     }
@@ -63,7 +93,8 @@ function Auth() {
       const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
       if (result.error) throw result.error;
       if (result.redirected) return;
-      navigate({ to: "/dashboard", replace: true });
+      const { data } = await supabase.auth.getUser();
+      navigate({ to: data.user ? await landingRoute(data.user.id) : "/dashboard", replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setBusy(false);
