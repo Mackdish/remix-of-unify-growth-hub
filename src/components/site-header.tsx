@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Menu, X, LayoutDashboard } from "lucide-react";
+import { Menu, X, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
 import { useSession } from "@/hooks/use-session";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -15,6 +16,7 @@ const nav = [
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { user } = useSession();
+  const { isAdmin } = usePermissions();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
@@ -42,13 +44,20 @@ export function SiteHeader() {
 
         <div className="hidden md:flex items-center gap-2">
           {user ? (
-            <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
-              <LayoutDashboard className="h-4 w-4" /> My dashboard
-            </Link>
+            isAdmin ? (
+              <Link to="/admin" className="btn-primary !py-2 !px-4 text-sm">
+                <ShieldCheck className="h-4 w-4" /> Admin panel
+              </Link>
+            ) : (
+              <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
+                <LayoutDashboard className="h-4 w-4" /> My dashboard
+              </Link>
+            )
           ) : (
             <Link to="/auth" className="btn-outline !py-2 !px-4 text-sm">Member Login</Link>
           )}
         </div>
+
 
         <button
           className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-md border border-border"
@@ -75,8 +84,12 @@ export function SiteHeader() {
               </Link>
             ))}
             {user ? (
-              <Link to="/dashboard" onClick={() => setOpen(false)} className="btn-primary mt-3">
-                My dashboard
+              <Link
+                to={isAdmin ? "/admin" : "/dashboard"}
+                onClick={() => setOpen(false)}
+                className="btn-primary mt-3"
+              >
+                {isAdmin ? "Admin panel" : "My dashboard"}
               </Link>
             ) : (
               <Link to="/auth" onClick={() => setOpen(false)} className="btn-primary mt-3">
