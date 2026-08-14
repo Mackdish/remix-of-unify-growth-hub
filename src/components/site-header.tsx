@@ -84,8 +84,12 @@ export function SiteHeader() {
               </Link>
             ))}
             {user ? (
-              <Link to="/dashboard" onClick={() => setOpen(false)} className="btn-primary mt-3">
-                My dashboard
+              <Link
+                to={isAdmin ? "/admin" : "/dashboard"}
+                onClick={() => setOpen(false)}
+                className="btn-primary mt-3"
+              >
+                {isAdmin ? "Admin panel" : "My dashboard"}
               </Link>
             ) : (
               <Link to="/auth" onClick={() => setOpen(false)} className="btn-primary mt-3">
