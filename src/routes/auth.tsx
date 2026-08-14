@@ -153,6 +153,17 @@ function Auth() {
           </button>
         </form>
 
+        {mode === "signin" && (
+          <button
+            type="button"
+            onClick={forgot}
+            disabled={busy}
+            className="mt-3 w-full text-xs text-muted-foreground hover:text-primary disabled:opacity-60"
+          >
+            Forgot password? Email me a reset link
+          </button>
+        )}
+
         <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
           <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
         </div>
