@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
-import { Menu, X, LayoutDashboard } from "lucide-react";
+import { Menu, X, LayoutDashboard, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
 import { useSession } from "@/hooks/use-session";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -15,6 +16,7 @@ const nav = [
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const { user } = useSession();
+  const { isAdmin } = usePermissions();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
