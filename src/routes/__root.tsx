@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { NoticeMarquee } from "@/components/notice-marquee";
+import { supabase } from "@/integrations/supabase/client";
 
 
 function NotFoundComponent() {
@@ -109,6 +110,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      queryClient.removeQueries({ queryKey: ["auth-user"] });
+      queryClient.removeQueries({ queryKey: ["my-permissions"] });
+      if (event !== "SIGNED_OUT") {
+        queryClient.invalidateQueries();
+      }
+    });
+
+    return () => data.subscription.unsubscribe();
+  }, [queryClient]);
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex min-h-screen flex-col">

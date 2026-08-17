@@ -1,26 +1,16 @@
-import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export function useSession() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: user = null, isLoading } = useQuery({
+    queryKey: ["auth-user"],
+    queryFn: async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) return null;
+      return data.user;
+    },
+    staleTime: 60_000,
+  });
 
-  useEffect(() => {
-    let mounted = true;
-    supabase.auth.getUser().then(({ data }) => {
-      if (!mounted) return;
-      setUser(data.user);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => {
-      mounted = false;
-      sub.subscription.unsubscribe();
-    };
-  }, []);
-
-  return { user, loading };
+  return { user, loading: isLoading };
 }

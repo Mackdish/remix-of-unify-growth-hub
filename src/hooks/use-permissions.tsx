@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useSession } from "@/hooks/use-session";
 import {
   ADMIN_ROLES,
   canWithRoles,
@@ -12,26 +13,28 @@ import {
 
 /** Roles + permission helpers for the signed-in user. */
 export function usePermissions() {
+  const { user, loading: sessionLoading } = useSession();
   const { data, isLoading } = useQuery({
-    queryKey: ["my-permissions"],
+    queryKey: ["my-permissions", user?.id ?? "signed-out"],
     queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return { userId: null as string | null, roles: [] as string[] };
-      const { data: rows } = await supabase
+      if (!user) return { userId: null as string | null, roles: [] as string[] };
+      const { data: rows, error } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", u.user.id);
+        .eq("user_id", user.id);
+      if (error) throw error;
       return {
-        userId: u.user.id,
+        userId: user.id,
         roles: (rows ?? []).map((r) => r.role as string),
       };
     },
+    enabled: !sessionLoading,
     staleTime: 60_000,
   });
 
   const roles = data?.roles ?? [];
   return {
-    loading: isLoading,
+    loading: sessionLoading || isLoading,
     userId: data?.userId ?? null,
     roles: roles as AppRole[],
     isAdmin: roles.some((r) => (ADMIN_ROLES as readonly string[]).includes(r)),
