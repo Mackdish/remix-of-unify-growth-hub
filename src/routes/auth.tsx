@@ -4,6 +4,7 @@ import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
+import { getAuthenticatedLandingRoute } from "@/lib/auth-routing";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -19,15 +20,6 @@ export const Route = createFileRoute("/auth")({
   component: Auth,
 });
 
-const ADMIN_ROLE_NAMES = ["super_admin", "treasurer", "secretary", "project_manager"];
-
-/** Admins land in the admin panel, everyone else in the member portal. */
-async function landingRoute(userId: string): Promise<"/admin" | "/dashboard"> {
-  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  const isAdmin = (data ?? []).some((r) => ADMIN_ROLE_NAMES.includes(r.role as string));
-  return isAdmin ? "/admin" : "/dashboard";
-}
-
 function Auth() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -38,7 +30,11 @@ function Auth() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
-      navigate({ to: await landingRoute(data.user.id), replace: true });
+      try {
+        navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not verify account access");
+      }
     });
   }, [navigate]);
 
@@ -50,7 +46,7 @@ function Auth() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         toast.success("Welcome back");
-        navigate({ to: await landingRoute(data.user.id), replace: true });
+        navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -90,11 +86,14 @@ function Auth() {
   const google = async () => {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/auth`,
+      });
       if (result.error) throw result.error;
       if (result.redirected) return;
       const { data } = await supabase.auth.getUser();
-      navigate({ to: data.user ? await landingRoute(data.user.id) : "/dashboard", replace: true });
+      if (!data.user) throw new Error("Google sign-in did not create a valid session.");
+      navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setBusy(false);
