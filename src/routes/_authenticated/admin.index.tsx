@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
-import { createMemberCredentials, resetMemberPassword } from "@/lib/member-accounts.functions";
+import { createMemberCredentials, resetMemberPassword, addMemberWithAccess } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
@@ -17,7 +17,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Link2,
-  ArrowLeft,
+  
   UserPlus,
   CheckCircle2,
   FileBarChart,
@@ -128,9 +128,9 @@ function AdminDashboard() {
             Group overview — members, contributions, and outstanding balances.
           </p>
         </div>
-        <Link to="/dashboard" className="btn-outline">
-          <ArrowLeft className="h-4 w-4" /> My dashboard
-        </Link>
+        <span className="text-xs text-muted-foreground">
+          Admin area — separate from the member portal
+        </span>
       </div>
 
       {/* Top stats */}
@@ -401,37 +401,62 @@ type MemberLite = { id: string; member_code: string; full_name: string; user_id:
 
 function AddMemberCard() {
   const qc = useQueryClient();
+  const addMember = useServerFn(addMemberWithAccess);
   const [open, setOpen] = useState(false);
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
   const [form, setForm] = useState({
     member_code: "",
     full_name: "",
     phone: "",
     email: "",
     notes: "",
+    role: "member" as
+      | "member"
+      | "treasurer"
+      | "secretary"
+      | "project_manager"
+      | "super_admin",
+    createLogin: false,
+    password: "",
   });
 
   const create = useMutation({
     mutationFn: async () => {
-      if (!form.member_code.trim() || !form.full_name.trim()) {
-        throw new Error("Member code and full name are required");
-      }
-      const { error } = await supabase.from("members").insert({
-        member_code: form.member_code.trim(),
-        full_name: form.full_name.trim(),
-        phone: form.phone.trim() || null,
-        email: form.email.trim() || null,
-        notes: form.notes.trim() || null,
-        status: "pending",
+      return await addMember({
+        data: {
+          memberCode: form.member_code.trim(),
+          fullName: form.full_name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim(),
+          notes: form.notes.trim(),
+          role: form.role,
+          createLogin: form.createLogin,
+          password: form.password,
+        },
       });
-      if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Member added — pending account approval");
-      setForm({ member_code: "", full_name: "", phone: "", email: "", notes: "" });
-      setOpen(false);
+    onSuccess: (res) => {
+      if (res.loginCreated && res.email) {
+        setIssued({ email: res.email, password: form.password });
+        toast.success("Member added with a login and role");
+      } else {
+        toast.success("Member added — pending account approval");
+      }
+      setForm({
+        member_code: "",
+        full_name: "",
+        phone: "",
+        email: "",
+        notes: "",
+        role: "member",
+        createLogin: false,
+        password: "",
+      });
       qc.invalidateQueries({ queryKey: ["admin-members"] });
+      qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
+      qc.invalidateQueries({ queryKey: ["users-with-roles"] });
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message || "Could not add the member"),
   });
 
   return (
@@ -442,7 +467,7 @@ function AddMemberCard() {
             <UserPlus className="h-5 w-5 text-primary" /> Add member
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Create a new member record. Link an account after they sign up.
+            Create the member record, pick their role, and optionally issue sign-in details right away.
           </p>
         </div>
         <button onClick={() => setOpen((v) => !v)} className="btn-outline !py-2 !px-4 text-sm">
@@ -451,7 +476,18 @@ function AddMemberCard() {
       </div>
       {open && (
         <form
-          onSubmit={(e) => { e.preventDefault(); create.mutate(); }}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!form.member_code.trim() || !form.full_name.trim()) {
+              toast.error("Member code and full name are required");
+              return;
+            }
+            if (form.createLogin && !form.email.trim()) {
+              toast.error("An email is required to create a login");
+              return;
+            }
+            create.mutate();
+          }}
           className="mt-5 grid md:grid-cols-6 gap-3"
         >
           <input
@@ -481,12 +517,61 @@ function AddMemberCard() {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             className="md:col-span-3 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
           />
+          <select
+            value={form.role}
+            onChange={(e) =>
+              setForm({ ...form, role: e.target.value as typeof form.role })
+            }
+            className="md:col-span-3 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+          >
+            {(["member", "treasurer", "secretary", "project_manager", "super_admin"] as const).map(
+              (r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABEL[r]}
+                </option>
+              ),
+            )}
+          </select>
           <input
             placeholder="Notes (optional)"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            className="md:col-span-3 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+            className="md:col-span-6 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
           />
+
+          <label className="md:col-span-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={form.createLogin}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  createLogin: e.target.checked,
+                  password: e.target.checked && !form.password ? randomPassword() : form.password,
+                })
+              }
+            />
+            Also create sign-in details now
+          </label>
+          {form.createLogin && (
+            <div className="md:col-span-3 flex gap-2">
+              <input
+                minLength={8}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Temporary password (min 8 chars)"
+                className="flex-1 rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, password: randomPassword() })}
+                className="btn-outline !py-2 !px-3 text-xs"
+              >
+                Generate
+              </button>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={create.isPending}
@@ -494,6 +579,18 @@ function AddMemberCard() {
           >
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Add member
           </button>
+
+          {issued && (
+            <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
+              <div className="font-semibold text-foreground">Share these sign-in details securely</div>
+              <div className="mt-1 font-mono text-xs break-all">
+                {issued.email} · {issued.password}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Shown once — ask them to change the password after first sign-in.
+              </p>
+            </div>
+          )}
         </form>
       )}
     </section>

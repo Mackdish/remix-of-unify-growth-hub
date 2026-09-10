@@ -96,3 +96,100 @@ export const resetMemberPassword = createServerFn({ method: "POST" })
 
     return { ok: true };
   });
+
+const AddMemberInput = z.object({
+  memberCode: z.string().trim().min(1).max(40),
+  fullName: z.string().trim().min(2).max(120),
+  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  email: z.string().trim().max(255).optional().or(z.literal("")),
+  notes: z.string().trim().max(500).optional().or(z.literal("")),
+  role: z.enum([
+    "member",
+    "treasurer",
+    "secretary",
+    "project_manager",
+    "super_admin",
+  ]),
+  createLogin: z.boolean(),
+  password: z.string().max(72).optional().or(z.literal("")),
+});
+
+/**
+ * Add a member record and, optionally, an auth login + role in one step.
+ * Runs privileged so RLS/grant surprises can't silently block admins.
+ */
+export const addMemberWithAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => AddMemberInput.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
+
+    const email = (data.email ?? "").trim().toLowerCase();
+    if (data.createLogin) {
+      if (!email) throw new Error("An email is required to create a login");
+      if (!data.password || data.password.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+      }
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from("members")
+      .select("id")
+      .eq("member_code", data.memberCode)
+      .maybeSingle();
+    if (existing) throw new Error(`Member code ${data.memberCode} is already taken`);
+
+    const { data: member, error: insErr } = await supabaseAdmin
+      .from("members")
+      .insert({
+        member_code: data.memberCode,
+        full_name: data.fullName,
+        phone: (data.phone ?? "").trim() || null,
+        email: email || null,
+        notes: (data.notes ?? "").trim() || null,
+        status: data.createLogin ? "active" : "pending",
+      })
+      .select("id")
+      .single();
+    if (insErr || !member) {
+      throw new Error(insErr?.message ?? "Could not save the member");
+    }
+
+    if (!data.createLogin) {
+      return { ok: true, memberId: member.id, loginCreated: false, email: null };
+    }
+
+    const { data: created, error: cErr } =
+      await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: data.password!,
+        email_confirm: true,
+        user_metadata: { full_name: data.fullName },
+      });
+    if (cErr || !created?.user) {
+      // Keep the member record; report why the login failed.
+      throw new Error(
+        `Member saved, but the login failed: ${cErr?.message ?? "unknown error"}`,
+      );
+    }
+
+    const userId = created.user.id;
+
+    await supabaseAdmin
+      .from("members")
+      .update({ user_id: userId })
+      .eq("id", member.id);
+
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert(
+        { user_id: userId, role: data.role },
+        { onConflict: "user_id,role" },
+      );
+
+    return { ok: true, memberId: member.id, loginCreated: true, email };
+  });
