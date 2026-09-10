@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
-import { createMemberCredentials, resetMemberPassword } from "@/lib/member-accounts.functions";
+import { createMemberCredentials, resetMemberPassword, addMemberWithAccess } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
@@ -128,9 +128,9 @@ function AdminDashboard() {
             Group overview — members, contributions, and outstanding balances.
           </p>
         </div>
-        <Link to="/dashboard" className="btn-outline">
-          <ArrowLeft className="h-4 w-4" /> My dashboard
-        </Link>
+        <span className="text-xs text-muted-foreground">
+          Admin area — separate from the member portal
+        </span>
       </div>
 
       {/* Top stats */}
