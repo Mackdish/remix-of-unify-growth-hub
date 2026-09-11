@@ -4,6 +4,7 @@ import { useState } from "react";
 import logo from "@/assets/logo.png";
 import { useSession } from "@/hooks/use-session";
 import { usePermissions } from "@/hooks/use-permissions";
+import { SignOutButton } from "@/components/sign-out-button";
 
 const nav = [
   { to: "/", label: "Home" },
@@ -44,15 +45,18 @@ export function SiteHeader() {
 
         <div className="hidden md:flex items-center gap-2">
           {user ? (
-            isAdmin ? (
-              <Link to="/admin" className="btn-primary !py-2 !px-4 text-sm">
-                <ShieldCheck className="h-4 w-4" /> Admin panel
-              </Link>
-            ) : (
-              <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
-                <LayoutDashboard className="h-4 w-4" /> My dashboard
-              </Link>
-            )
+            <>
+              {isAdmin ? (
+                <Link to="/admin" className="btn-primary !py-2 !px-4 text-sm">
+                  <ShieldCheck className="h-4 w-4" /> Admin panel
+                </Link>
+              ) : (
+                <Link to="/dashboard" className="btn-primary !py-2 !px-4 text-sm">
+                  <LayoutDashboard className="h-4 w-4" /> My dashboard
+                </Link>
+              )}
+              <SignOutButton />
+            </>
           ) : (
             <Link to="/auth" className="btn-outline !py-2 !px-4 text-sm">Member Login</Link>
           )}
@@ -84,13 +88,19 @@ export function SiteHeader() {
               </Link>
             ))}
             {user ? (
-              <Link
-                to={isAdmin ? "/admin" : "/dashboard"}
-                onClick={() => setOpen(false)}
-                className="btn-primary mt-3"
-              >
-                {isAdmin ? "Admin panel" : "My dashboard"}
-              </Link>
+              <>
+                <Link
+                  to={isAdmin ? "/admin" : "/dashboard"}
+                  onClick={() => setOpen(false)}
+                  className="btn-primary mt-3"
+                >
+                  {isAdmin ? "Admin panel" : "My dashboard"}
+                </Link>
+                <SignOutButton
+                  className="btn-outline mt-2 justify-center"
+                  onDone={() => setOpen(false)}
+                />
+              </>
             ) : (
               <Link to="/auth" onClick={() => setOpen(false)} className="btn-primary mt-3">
                 Member Login
