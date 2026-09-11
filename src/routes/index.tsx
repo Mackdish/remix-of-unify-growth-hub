@@ -4,6 +4,7 @@ import heroImg from "@/assets/hero.jpg";
 import p1 from "@/assets/project-1.jpg";
 import p2 from "@/assets/project-2.jpg";
 import p3 from "@/assets/project-3.jpg";
+import { usePublicProjects, useSiteImage, useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,13 +32,13 @@ const values = [
   { icon: Sprout, title: "Community", body: "Projects and initiatives that improve life around Wote and Makueni." },
 ];
 
-const featured = [
-  { img: p1, title: "Green Makueni", status: "Ongoing", desc: "Tree-planting and land-restoration drives across our community." },
-  { img: p2, title: "Youth Skills Hub", status: "Ongoing", desc: "Business, digital, and financial-literacy training for members." },
-  { img: p3, title: "Members' Savings", status: "Live", desc: "Monthly contributions, boosting, and internal lending, tracked transparently." },
-];
+const fallbackImages = [p1, p2, p3];
 
 function Home() {
+  const { data: heroUrl } = useSiteImage("hero");
+  const { data: settings } = useSiteSettings();
+  const { data: projects = [] } = usePublicProjects();
+  const featured = projects.slice(0, 3);
   return (
     <div>
       {/* Hero */}
