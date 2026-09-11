@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -22,6 +23,7 @@ const leaders = [
 ];
 
 function About() {
+  const { data: settings } = useSiteSettings();
   return (
     <div>
       <section className="bg-surface border-b border-border">
