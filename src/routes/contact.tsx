@@ -67,7 +67,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><MapPin className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Location</div>
-                <div className="text-sm text-muted-foreground">Wote, Makueni, Kenya</div>
+                <div className="text-sm text-muted-foreground">{location}</div>
               </div>
             </div>
           </div>
@@ -76,7 +76,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><Phone className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Phone</div>
-                <a href="tel:+254703977431" className="text-sm text-primary hover:text-primary-glow">0703 977 431</a>
+                <a href={`tel:${phone.replace(/\s+/g, "")}`} className="text-sm text-primary hover:text-primary-glow">{phone}</a>
               </div>
             </div>
           </div>
@@ -85,7 +85,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><Mail className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Email</div>
-                <div className="text-sm text-muted-foreground">info@unifyyouth.org</div>
+                <a href={`mailto:${email}`} className="text-sm text-primary hover:text-primary-glow">{email}</a>
               </div>
             </div>
           </div>
