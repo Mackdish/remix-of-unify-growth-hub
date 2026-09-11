@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Phone, MapPin, Mail, Send } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -24,6 +25,10 @@ const schema = z.object({
 });
 
 function Contact() {
+  const { data: settings } = useSiteSettings();
+  const phone = settings?.phone?.trim() || "0703 977 431";
+  const email = settings?.email?.trim() || "info@unifyyouth.org";
+  const location = settings?.location?.trim() || "Wote, Makueni, Kenya";
   const [status, setStatus] = useState<"idle" | "sent" | "error">("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -62,7 +67,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><MapPin className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Location</div>
-                <div className="text-sm text-muted-foreground">Wote, Makueni, Kenya</div>
+                <div className="text-sm text-muted-foreground">{location}</div>
               </div>
             </div>
           </div>
@@ -71,7 +76,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><Phone className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Phone</div>
-                <a href="tel:+254703977431" className="text-sm text-primary hover:text-primary-glow">0703 977 431</a>
+                <a href={`tel:${phone.replace(/\s+/g, "")}`} className="text-sm text-primary hover:text-primary-glow">{phone}</a>
               </div>
             </div>
           </div>
@@ -80,7 +85,7 @@ function Contact() {
               <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary grid place-items-center"><Mail className="h-5 w-5" /></div>
               <div>
                 <div className="font-semibold text-foreground">Email</div>
-                <div className="text-sm text-muted-foreground">info@unifyyouth.org</div>
+                <a href={`mailto:${email}`} className="text-sm text-primary hover:text-primary-glow">{email}</a>
               </div>
             </div>
           </div>

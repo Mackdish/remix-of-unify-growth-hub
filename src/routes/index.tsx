@@ -4,6 +4,7 @@ import heroImg from "@/assets/hero.jpg";
 import p1 from "@/assets/project-1.jpg";
 import p2 from "@/assets/project-2.jpg";
 import p3 from "@/assets/project-3.jpg";
+import { usePublicProjects, useSiteImage, useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,19 +32,19 @@ const values = [
   { icon: Sprout, title: "Community", body: "Projects and initiatives that improve life around Wote and Makueni." },
 ];
 
-const featured = [
-  { img: p1, title: "Green Makueni", status: "Ongoing", desc: "Tree-planting and land-restoration drives across our community." },
-  { img: p2, title: "Youth Skills Hub", status: "Ongoing", desc: "Business, digital, and financial-literacy training for members." },
-  { img: p3, title: "Members' Savings", status: "Live", desc: "Monthly contributions, boosting, and internal lending, tracked transparently." },
-];
+const fallbackImages = [p1, p2, p3];
 
 function Home() {
+  const { data: heroUrl } = useSiteImage("hero");
+  const { data: settings } = useSiteSettings();
+  const { data: projects = [] } = usePublicProjects();
+  const featured = projects.slice(0, 3);
   return (
     <div>
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0">
-          <img src={heroImg} alt="" className="h-full w-full object-cover" width={1600} height={1104} />
+          <img src={heroUrl ?? heroImg} alt="" className="h-full w-full object-cover" width={1600} height={1104} />
           <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/80 to-primary/50" />
         </div>
         <div className="container-page relative py-24 md:py-36">
@@ -55,8 +56,8 @@ function Home() {
             Empowering youth. <span className="text-accent">Building community.</span> Creating a better future.
           </h1>
           <p className="mt-5 max-w-xl text-base md:text-lg text-white/85">
-            Unify Youth Group is a member-run financial and community organisation.
-            We save together, lend together, and invest in projects that lift our neighbourhood.
+            {settings?.tagline?.trim() ||
+              "Unify Youth Group is a member-run financial and community organisation. We save together, lend together, and invest in projects that lift our neighbourhood."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/about" className="btn-accent">
@@ -127,15 +128,15 @@ function Home() {
             </Link>
           </div>
           <div className="mt-10 grid md:grid-cols-3 gap-6">
-            {featured.map((p) => (
-              <article key={p.title} className="group rounded-2xl overflow-hidden bg-card border border-border shadow-[var(--shadow-soft)]">
+            {featured.map((p, i) => (
+              <article key={p.id} className="group rounded-2xl overflow-hidden bg-card border border-border shadow-[var(--shadow-soft)]">
                 <div className="aspect-[4/3] overflow-hidden">
-                  <img src={p.img} alt={p.title} loading="lazy" width={1200} height={900} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                  <img src={p.image_url ?? fallbackImages[i % fallbackImages.length]} alt={p.title} loading="lazy" width={1200} height={900} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                 </div>
                 <div className="p-5">
                   <span className="inline-flex text-xs font-semibold px-2 py-0.5 rounded-full bg-accent/20 text-[color-mix(in_oklab,var(--accent-foreground)_100%,transparent)]">{p.status}</span>
                   <h3 className="mt-3 text-lg font-semibold text-foreground">{p.title}</h3>
-                  <p className="mt-1.5 text-sm text-muted-foreground">{p.desc}</p>
+                  <p className="mt-1.5 text-sm text-muted-foreground">{p.description}</p>
                 </div>
               </article>
             ))}

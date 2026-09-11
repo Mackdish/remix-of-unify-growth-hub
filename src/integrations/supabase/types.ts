@@ -286,6 +286,45 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          image_url: string | null
+          progress: number
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          image_url?: string | null
+          progress?: number
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          image_url?: string | null
+          progress?: number
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       report_schedule_settings: {
         Row: {
           created_at: string
@@ -369,43 +408,52 @@ export type Database = {
       }
       site_settings: {
         Row: {
+          about_intro: string
           created_at: string
           email: string
           group_name: string
           id: string
           location: string
           marquee_enabled: boolean
+          mission: string
           phone: string
           singleton: boolean
           tagline: string
           updated_at: string
           updated_by: string | null
+          vision: string
         }
         Insert: {
+          about_intro?: string
           created_at?: string
           email?: string
           group_name?: string
           id?: string
           location?: string
           marquee_enabled?: boolean
+          mission?: string
           phone?: string
           singleton?: boolean
           tagline?: string
           updated_at?: string
           updated_by?: string | null
+          vision?: string
         }
         Update: {
+          about_intro?: string
           created_at?: string
           email?: string
           group_name?: string
           id?: string
           location?: string
           marquee_enabled?: boolean
+          mission?: string
           phone?: string
           singleton?: boolean
           tagline?: string
           updated_at?: string
           updated_by?: string | null
+          vision?: string
         }
         Relationships: []
       }

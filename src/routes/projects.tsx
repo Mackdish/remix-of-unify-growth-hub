@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import p1 from "@/assets/project-1.jpg";
 import p2 from "@/assets/project-2.jpg";
 import p3 from "@/assets/project-3.jpg";
+import { usePublicProjects } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({
@@ -15,11 +16,7 @@ export const Route = createFileRoute("/projects")({
   component: Projects,
 });
 
-const projects = [
-  { img: p1, title: "Green Makueni", status: "Ongoing", progress: 45, desc: "Tree-planting drives to restore land and provide shade around Wote." },
-  { img: p2, title: "Youth Skills Hub", status: "Ongoing", progress: 30, desc: "Weekly workshops on entrepreneurship, digital skills and financial literacy." },
-  { img: p3, title: "Members' Savings Programme", status: "Live", progress: 100, desc: "Monthly contributions, account boosting, and internal lending, tracked transparently." },
-];
+const fallbackImages = [p1, p2, p3];
 
 const statusStyle: Record<string, string> = {
   Ongoing: "bg-accent/25 text-[color-mix(in_oklab,var(--accent-foreground)_100%,transparent)]",
@@ -29,6 +26,7 @@ const statusStyle: Record<string, string> = {
 };
 
 function Projects() {
+  const { data: projects = [] } = usePublicProjects();
   return (
     <div>
       <section className="bg-surface border-b border-border">
@@ -42,15 +40,18 @@ function Projects() {
       </section>
 
       <section className="container-page py-16 grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((p) => (
-          <article key={p.title} className="rounded-2xl overflow-hidden bg-card border border-border shadow-[var(--shadow-soft)] flex flex-col">
+        {projects.length === 0 && (
+          <p className="text-muted-foreground">Projects will appear here once the administrator adds them.</p>
+        )}
+        {projects.map((p, i) => (
+          <article key={p.id} className="rounded-2xl overflow-hidden bg-card border border-border shadow-[var(--shadow-soft)] flex flex-col">
             <div className="aspect-[4/3] overflow-hidden">
-              <img src={p.img} alt={p.title} loading="lazy" width={1200} height={900} className="h-full w-full object-cover" />
+              <img src={p.image_url ?? fallbackImages[i % fallbackImages.length]} alt={p.title} loading="lazy" width={1200} height={900} className="h-full w-full object-cover" />
             </div>
             <div className="p-6 flex-1 flex flex-col">
-              <span className={`inline-flex w-fit text-xs font-semibold px-2 py-0.5 rounded-full ${statusStyle[p.status]}`}>{p.status}</span>
+              <span className={`inline-flex w-fit text-xs font-semibold px-2 py-0.5 rounded-full ${statusStyle[p.status] ?? statusStyle.Planned}`}>{p.status}</span>
               <h3 className="mt-3 text-lg font-semibold text-foreground">{p.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground flex-1">{p.desc}</p>
+              <p className="mt-2 text-sm text-muted-foreground flex-1">{p.description}</p>
               <div className="mt-4">
                 <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
                   <span>Progress</span><span>{p.progress}%</span>

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -22,6 +23,7 @@ const leaders = [
 ];
 
 function About() {
+  const { data: settings } = useSiteSettings();
   return (
     <div>
       <section className="bg-surface border-b border-border">
@@ -30,9 +32,9 @@ function About() {
           <h1 className="mt-3 text-4xl md:text-5xl text-foreground max-w-3xl">
             A community of young people investing in each other and in Makueni.
           </h1>
-          <p className="mt-5 max-w-2xl text-lg text-muted-foreground">
-            Founded to promote unity, financial cooperation and youth empowerment, Unify Youth Group brings
-            members together around shared savings, loans, and community projects.
+          <p className="mt-5 max-w-2xl text-lg text-muted-foreground whitespace-pre-line">
+            {settings?.about_intro ??
+              "Founded to promote unity, financial cooperation and youth empowerment, Unify Youth Group brings members together around shared savings, loans, and community projects."}
           </p>
         </div>
       </section>
@@ -40,15 +42,16 @@ function About() {
       <section className="container-page py-16 grid md:grid-cols-2 gap-12">
         <div>
           <h2 className="text-2xl text-foreground">Our vision</h2>
-          <p className="mt-3 text-muted-foreground leading-relaxed">
-            A united and financially empowered youth community that leads sustainable development in Makueni and beyond.
+          <p className="mt-3 text-muted-foreground leading-relaxed whitespace-pre-line">
+            {settings?.vision ??
+              "A united and financially empowered youth community that leads sustainable development in Makueni and beyond."}
           </p>
         </div>
         <div>
           <h2 className="text-2xl text-foreground">Our mission</h2>
-          <p className="mt-3 text-muted-foreground leading-relaxed">
-            To empower our members through disciplined savings, fair internal lending, transparent record-keeping,
-            and community projects that create real, lasting impact.
+          <p className="mt-3 text-muted-foreground leading-relaxed whitespace-pre-line">
+            {settings?.mission ??
+              "To empower our members through disciplined savings, fair internal lending, transparent record-keeping, and community projects that create real, lasting impact."}
           </p>
         </div>
       </section>
