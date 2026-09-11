@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import p1 from "@/assets/project-1.jpg";
 import p2 from "@/assets/project-2.jpg";
 import p3 from "@/assets/project-3.jpg";
+import { usePublicProjects } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/projects")({
   head: () => ({
@@ -15,11 +16,7 @@ export const Route = createFileRoute("/projects")({
   component: Projects,
 });
 
-const projects = [
-  { img: p1, title: "Green Makueni", status: "Ongoing", progress: 45, desc: "Tree-planting drives to restore land and provide shade around Wote." },
-  { img: p2, title: "Youth Skills Hub", status: "Ongoing", progress: 30, desc: "Weekly workshops on entrepreneurship, digital skills and financial literacy." },
-  { img: p3, title: "Members' Savings Programme", status: "Live", progress: 100, desc: "Monthly contributions, account boosting, and internal lending, tracked transparently." },
-];
+const fallbackImages = [p1, p2, p3];
 
 const statusStyle: Record<string, string> = {
   Ongoing: "bg-accent/25 text-[color-mix(in_oklab,var(--accent-foreground)_100%,transparent)]",
