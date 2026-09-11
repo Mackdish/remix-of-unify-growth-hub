@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Phone, MapPin, Mail, Send } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { useSiteSettings } from "@/hooks/use-site-content";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -24,6 +25,10 @@ const schema = z.object({
 });
 
 function Contact() {
+  const { data: settings } = useSiteSettings();
+  const phone = settings?.phone?.trim() || "0703 977 431";
+  const email = settings?.email?.trim() || "info@unifyyouth.org";
+  const location = settings?.location?.trim() || "Wote, Makueni, Kenya";
   const [status, setStatus] = useState<"idle" | "sent" | "error">("idle");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
