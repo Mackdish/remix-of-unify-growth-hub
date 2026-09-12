@@ -221,6 +221,44 @@ function Dashboard() {
         })}
       </div>
 
+      {/* Month by month */}
+      <div className="mt-10">
+        <h2 className="text-xl font-semibold text-foreground">Month by month</h2>
+        <p className="text-sm text-muted-foreground">Your contributions, fines and loan activity for each month.</p>
+        <div className="mt-4 rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-soft)]">
+          {months.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">No monthly records yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary text-secondary-foreground text-left text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3">Month</th>
+                    <th className="px-4 py-3 text-right">Contributions</th>
+                    <th className="px-4 py-3 text-right">Fines &amp; dues</th>
+                    <th className="px-4 py-3 text-right">Loans taken</th>
+                    <th className="px-4 py-3 text-right">Loan repaid</th>
+                    <th className="px-4 py-3 text-right">Entries</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {months.map((r) => (
+                    <tr key={r.month} className="hover:bg-secondary/40">
+                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{r.label}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.contributions)}</td>
+                      <td className="px-4 py-3 text-right text-destructive">{fmt(r.fines)}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.loans)}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.repayments)}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{r.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Transactions */}
       <div className="mt-10">
         <h2 className="text-xl font-semibold text-foreground">Transaction history</h2>
