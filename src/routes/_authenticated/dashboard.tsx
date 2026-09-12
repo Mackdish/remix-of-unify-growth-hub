@@ -92,6 +92,36 @@ function Dashboard() {
     return { map, loanOutstanding, grand };
   }, [data?.transactions]);
 
+  /** Per-month totals so members can follow their own monthly record. */
+  const months = useMemo(() => {
+    const byMonth = new Map<
+      string,
+      { contributions: number; fines: number; loans: number; repayments: number; other: number; count: number }
+    >();
+    (data?.transactions ?? []).forEach((t) => {
+      const key = (t.transaction_date ?? "").slice(0, 7);
+      if (!key) return;
+      const row =
+        byMonth.get(key) ??
+        { contributions: 0, fines: 0, loans: 0, repayments: 0, other: 0, count: 0 };
+      const amt = Number(t.amount);
+      if (t.category === "monthly_contribution" || t.category === "account_boosting") row.contributions += amt;
+      else if (t.category === "fine" || t.category === "penalty" || t.category === "due") row.fines += amt;
+      else if (t.category === "loan_disbursement" || t.category === "shirts_loan") row.loans += amt;
+      else if (t.category === "loan_repayment") row.repayments += amt;
+      else row.other += amt;
+      row.count += 1;
+      byMonth.set(key, row);
+    });
+    return [...byMonth.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([month, v]) => ({
+        month,
+        label: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-KE", { month: "long", year: "numeric" }),
+        ...v,
+      }));
+  }, [data?.transactions]);
+
   const downloadStatement = async () => {
     if (!data?.member) return;
     try {
