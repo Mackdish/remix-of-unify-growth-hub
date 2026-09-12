@@ -92,6 +92,36 @@ function Dashboard() {
     return { map, loanOutstanding, grand };
   }, [data?.transactions]);
 
+  /** Per-month totals so members can follow their own monthly record. */
+  const months = useMemo(() => {
+    const byMonth = new Map<
+      string,
+      { contributions: number; fines: number; loans: number; repayments: number; other: number; count: number }
+    >();
+    (data?.transactions ?? []).forEach((t) => {
+      const key = (t.transaction_date ?? "").slice(0, 7);
+      if (!key) return;
+      const row =
+        byMonth.get(key) ??
+        { contributions: 0, fines: 0, loans: 0, repayments: 0, other: 0, count: 0 };
+      const amt = Number(t.amount);
+      if (t.category === "monthly_contribution" || t.category === "account_boosting") row.contributions += amt;
+      else if (t.category === "fine" || t.category === "penalty" || t.category === "due") row.fines += amt;
+      else if (t.category === "loan_disbursement" || t.category === "shirts_loan") row.loans += amt;
+      else if (t.category === "loan_repayment") row.repayments += amt;
+      else row.other += amt;
+      row.count += 1;
+      byMonth.set(key, row);
+    });
+    return [...byMonth.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+      .map(([month, v]) => ({
+        month,
+        label: new Date(`${month}-01T00:00:00`).toLocaleDateString("en-KE", { month: "long", year: "numeric" }),
+        ...v,
+      }));
+  }, [data?.transactions]);
+
   const downloadStatement = async () => {
     if (!data?.member) return;
     try {
@@ -189,6 +219,44 @@ function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      {/* Month by month */}
+      <div className="mt-10">
+        <h2 className="text-xl font-semibold text-foreground">Month by month</h2>
+        <p className="text-sm text-muted-foreground">Your contributions, fines and loan activity for each month.</p>
+        <div className="mt-4 rounded-2xl bg-card border border-border overflow-hidden shadow-[var(--shadow-soft)]">
+          {months.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">No monthly records yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary text-secondary-foreground text-left text-xs uppercase tracking-wide">
+                  <tr>
+                    <th className="px-4 py-3">Month</th>
+                    <th className="px-4 py-3 text-right">Contributions</th>
+                    <th className="px-4 py-3 text-right">Fines &amp; dues</th>
+                    <th className="px-4 py-3 text-right">Loans taken</th>
+                    <th className="px-4 py-3 text-right">Loan repaid</th>
+                    <th className="px-4 py-3 text-right">Entries</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {months.map((r) => (
+                    <tr key={r.month} className="hover:bg-secondary/40">
+                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">{r.label}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.contributions)}</td>
+                      <td className="px-4 py-3 text-right text-destructive">{fmt(r.fines)}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.loans)}</td>
+                      <td className="px-4 py-3 text-right text-foreground">{fmt(r.repayments)}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">{r.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Transactions */}
