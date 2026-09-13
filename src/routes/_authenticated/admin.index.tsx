@@ -544,22 +544,28 @@ function AddMemberCard() {
             className="md:col-span-6 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
           />
 
-          <label className="md:col-span-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={form.createLogin}
-              onChange={(e) =>
+          <label className="md:col-span-3 text-sm">
+            <span className="text-xs text-muted-foreground">Sign-in access</span>
+            <select
+              value={form.access}
+              onChange={(e) => {
+                const access = e.target.value as typeof form.access;
                 setForm({
                   ...form,
-                  createLogin: e.target.checked,
-                  password: e.target.checked && !form.password ? randomPassword() : form.password,
-                })
-              }
-            />
-            Also create sign-in details now
+                  access,
+                  password:
+                    access === "password" && !form.password ? randomPassword() : form.password,
+                });
+              }}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="email">Email them a link to set their own password</option>
+              <option value="password">I set a temporary password now</option>
+              <option value="none">No login yet (record only)</option>
+            </select>
           </label>
-          {form.createLogin && (
-            <div className="md:col-span-3 flex gap-2">
+          {form.access === "password" && (
+            <div className="md:col-span-3 flex gap-2 md:mt-5">
               <input
                 minLength={8}
                 value={form.password}
@@ -575,6 +581,12 @@ function AddMemberCard() {
                 Generate
               </button>
             </div>
+          )}
+          {form.access === "email" && (
+            <p className="md:col-span-3 text-xs text-muted-foreground md:mt-8">
+              They receive an email with a secure link, set their own password, and their role is
+              assigned automatically.
+            </p>
           )}
 
           <button
