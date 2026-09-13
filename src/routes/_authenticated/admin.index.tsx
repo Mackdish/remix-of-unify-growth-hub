@@ -487,7 +487,7 @@ function AddMemberCard() {
               toast.error("Member code and full name are required");
               return;
             }
-            if (form.createLogin && !form.email.trim()) {
+            if (form.access !== "none" && !form.email.trim()) {
               toast.error("An email is required to create a login");
               return;
             }
