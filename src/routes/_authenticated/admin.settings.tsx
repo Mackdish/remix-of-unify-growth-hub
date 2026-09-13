@@ -438,6 +438,8 @@ function ImagesCard() {
     onSuccess: () => {
       toast.success("Image deleted");
       qc.invalidateQueries({ queryKey: ["site-images"] });
+      qc.invalidateQueries({ queryKey: ["site-image"] });
+      qc.invalidateQueries({ queryKey: ["gallery-images"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
