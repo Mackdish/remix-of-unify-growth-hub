@@ -420,6 +420,8 @@ function ImagesCard() {
       toast.success("Image uploaded");
       setTitle("");
       qc.invalidateQueries({ queryKey: ["site-images"] });
+      qc.invalidateQueries({ queryKey: ["site-image"] });
+      qc.invalidateQueries({ queryKey: ["gallery-images"] });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
