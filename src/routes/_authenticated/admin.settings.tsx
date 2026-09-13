@@ -186,6 +186,23 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
             />
           </label>
         ))}
+        {([
+          ["about_intro", "About page intro"],
+          ["vision", "Our vision"],
+          ["mission", "Our mission"],
+        ] as const).map(([key, label]) => (
+          <label key={key} className="text-sm md:col-span-2">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <textarea
+              disabled={!isSuper}
+              maxLength={1200}
+              rows={3}
+              value={form[key]}
+              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm disabled:opacity-60"
+            />
+          </label>
+        ))}
         <label className="flex items-center gap-2 text-sm mt-6">
           <input
             type="checkbox"
