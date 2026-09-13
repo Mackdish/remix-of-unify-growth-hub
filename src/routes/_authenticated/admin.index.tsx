@@ -416,7 +416,7 @@ function AddMemberCard() {
       | "secretary"
       | "project_manager"
       | "super_admin",
-    createLogin: false,
+    access: "email" as "none" | "password" | "email",
     password: "",
   });
 
@@ -430,13 +430,18 @@ function AddMemberCard() {
           email: form.email.trim(),
           notes: form.notes.trim(),
           role: form.role,
-          createLogin: form.createLogin,
+          access: form.access,
           password: form.password,
+          redirectTo:
+            typeof window !== "undefined" ? `${window.location.origin}/auth` : "",
         },
       });
     },
     onSuccess: (res) => {
-      if (res.loginCreated && res.email) {
+      if (res.emailSent && res.email) {
+        setIssued(null);
+        toast.success(`Invitation sent to ${res.email} — they set their own password`);
+      } else if (res.loginCreated && res.email) {
         setIssued({ email: res.email, password: form.password });
         toast.success("Member added with a login and role");
       } else {
@@ -449,7 +454,7 @@ function AddMemberCard() {
         email: "",
         notes: "",
         role: "member",
-        createLogin: false,
+        access: "email",
         password: "",
       });
       qc.invalidateQueries({ queryKey: ["admin-members"] });
