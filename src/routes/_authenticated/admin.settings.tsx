@@ -133,6 +133,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
           phone: form.phone.trim(),
           email: form.email.trim(),
           location: form.location.trim(),
+          about_intro: form.about_intro.trim(),
+          vision: form.vision.trim(),
+          mission: form.mission.trim(),
           marquee_enabled: form.marquee_enabled,
         })
         .eq("id", form.id);
