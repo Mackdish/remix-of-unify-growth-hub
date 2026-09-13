@@ -446,7 +446,8 @@ function ImagesCard() {
         <ImagePlus className="h-5 w-5 text-primary" /> Photos
       </h2>
       <p className="text-xs text-muted-foreground mt-0.5">
-        Uploaded gallery photos appear on the public gallery page.
+        Gallery photos show on the gallery page, and a homepage background replaces the front-page
+        picture straight away.
       </p>
 
       <div className="mt-5 grid md:grid-cols-4 gap-3 items-end">
