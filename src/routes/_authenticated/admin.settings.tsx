@@ -90,6 +90,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
     phone: string;
     email: string;
     location: string;
+    about_intro: string;
+    vision: string;
+    mission: string;
     marquee_enabled: boolean;
   }>(null);
 
