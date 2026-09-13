@@ -416,7 +416,7 @@ function AddMemberCard() {
       | "secretary"
       | "project_manager"
       | "super_admin",
-    createLogin: false,
+    access: "email" as "none" | "password" | "email",
     password: "",
   });
 
@@ -430,13 +430,18 @@ function AddMemberCard() {
           email: form.email.trim(),
           notes: form.notes.trim(),
           role: form.role,
-          createLogin: form.createLogin,
+          access: form.access,
           password: form.password,
+          redirectTo:
+            typeof window !== "undefined" ? `${window.location.origin}/auth` : "",
         },
       });
     },
     onSuccess: (res) => {
-      if (res.loginCreated && res.email) {
+      if (res.emailSent && res.email) {
+        setIssued(null);
+        toast.success(`Invitation sent to ${res.email} — they set their own password`);
+      } else if (res.loginCreated && res.email) {
         setIssued({ email: res.email, password: form.password });
         toast.success("Member added with a login and role");
       } else {
@@ -449,7 +454,7 @@ function AddMemberCard() {
         email: "",
         notes: "",
         role: "member",
-        createLogin: false,
+        access: "email",
         password: "",
       });
       qc.invalidateQueries({ queryKey: ["admin-members"] });
@@ -482,7 +487,7 @@ function AddMemberCard() {
               toast.error("Member code and full name are required");
               return;
             }
-            if (form.createLogin && !form.email.trim()) {
+            if (form.access !== "none" && !form.email.trim()) {
               toast.error("An email is required to create a login");
               return;
             }
@@ -539,22 +544,28 @@ function AddMemberCard() {
             className="md:col-span-6 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
           />
 
-          <label className="md:col-span-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={form.createLogin}
-              onChange={(e) =>
+          <label className="md:col-span-3 text-sm">
+            <span className="text-xs text-muted-foreground">Sign-in access</span>
+            <select
+              value={form.access}
+              onChange={(e) => {
+                const access = e.target.value as typeof form.access;
                 setForm({
                   ...form,
-                  createLogin: e.target.checked,
-                  password: e.target.checked && !form.password ? randomPassword() : form.password,
-                })
-              }
-            />
-            Also create sign-in details now
+                  access,
+                  password:
+                    access === "password" && !form.password ? randomPassword() : form.password,
+                });
+              }}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+            >
+              <option value="email">Email them a link to set their own password</option>
+              <option value="password">I set a temporary password now</option>
+              <option value="none">No login yet (record only)</option>
+            </select>
           </label>
-          {form.createLogin && (
-            <div className="md:col-span-3 flex gap-2">
+          {form.access === "password" && (
+            <div className="md:col-span-3 flex gap-2 md:mt-5">
               <input
                 minLength={8}
                 value={form.password}
@@ -570,6 +581,12 @@ function AddMemberCard() {
                 Generate
               </button>
             </div>
+          )}
+          {form.access === "email" && (
+            <p className="md:col-span-3 text-xs text-muted-foreground md:mt-8">
+              They receive an email with a secure link, set their own password, and their role is
+              assigned automatically.
+            </p>
           )}
 
           <button

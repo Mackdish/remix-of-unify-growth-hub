@@ -30,6 +30,12 @@ export const Route = createFileRoute("/_authenticated/admin/settings")({
 
 const CATEGORIES = ["gallery", "projects", "hero"] as const;
 
+const CATEGORY_LABEL: Record<(typeof CATEGORIES)[number], string> = {
+  gallery: "Gallery photo",
+  projects: "Project photo",
+  hero: "Homepage background",
+};
+
 function ControlPanel() {
   const { can, allowed, loading: checking, isSuperAdmin } = useRequirePermission("manage_content");
   const canEditSettings = can("manage_settings");
@@ -90,6 +96,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
     phone: string;
     email: string;
     location: string;
+    about_intro: string;
+    vision: string;
+    mission: string;
     marquee_enabled: boolean;
   }>(null);
 
@@ -111,6 +120,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
         phone: data.phone,
         email: data.email,
         location: data.location,
+        about_intro: data.about_intro ?? "",
+        vision: data.vision ?? "",
+        mission: data.mission ?? "",
         marquee_enabled: data.marquee_enabled,
       });
     }
@@ -127,6 +139,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
           phone: form.phone.trim(),
           email: form.email.trim(),
           location: form.location.trim(),
+          about_intro: form.about_intro.trim(),
+          vision: form.vision.trim(),
+          mission: form.mission.trim(),
           marquee_enabled: form.marquee_enabled,
         })
         .eq("id", form.id);
@@ -171,6 +186,23 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
             <input
               disabled={!isSuper}
               maxLength={200}
+              value={form[key]}
+              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm disabled:opacity-60"
+            />
+          </label>
+        ))}
+        {([
+          ["about_intro", "About page intro"],
+          ["vision", "Our vision"],
+          ["mission", "Our mission"],
+        ] as const).map(([key, label]) => (
+          <label key={key} className="text-sm md:col-span-2">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <textarea
+              disabled={!isSuper}
+              maxLength={1200}
+              rows={3}
               value={form[key]}
               onChange={(e) => setForm({ ...form, [key]: e.target.value })}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm disabled:opacity-60"
@@ -388,6 +420,8 @@ function ImagesCard() {
       toast.success("Image uploaded");
       setTitle("");
       qc.invalidateQueries({ queryKey: ["site-images"] });
+      qc.invalidateQueries({ queryKey: ["site-image"] });
+      qc.invalidateQueries({ queryKey: ["gallery-images"] });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -404,6 +438,8 @@ function ImagesCard() {
     onSuccess: () => {
       toast.success("Image deleted");
       qc.invalidateQueries({ queryKey: ["site-images"] });
+      qc.invalidateQueries({ queryKey: ["site-image"] });
+      qc.invalidateQueries({ queryKey: ["gallery-images"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -414,7 +450,8 @@ function ImagesCard() {
         <ImagePlus className="h-5 w-5 text-primary" /> Photos
       </h2>
       <p className="text-xs text-muted-foreground mt-0.5">
-        Uploaded gallery photos appear on the public gallery page.
+        Gallery photos show on the gallery page, and a homepage background replaces the front-page
+        picture straight away.
       </p>
 
       <div className="mt-5 grid md:grid-cols-4 gap-3 items-end">
@@ -426,7 +463,7 @@ function ImagesCard() {
             className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
           >
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>
             ))}
           </select>
         </label>

@@ -3,10 +3,6 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import p1 from "@/assets/project-1.jpg";
-import p2 from "@/assets/project-2.jpg";
-import p3 from "@/assets/project-3.jpg";
-import hero from "@/assets/hero.jpg";
 
 export const Route = createFileRoute("/gallery")({
   head: () => ({
@@ -19,15 +15,6 @@ export const Route = createFileRoute("/gallery")({
   }),
   component: Gallery,
 });
-
-const staticImages = [
-  { src: hero, alt: "Members together at sunset" },
-  { src: p1, alt: "Tree-planting day" },
-  { src: p2, alt: "Skills training workshop" },
-  { src: p3, alt: "Recording contributions at a meeting" },
-  { src: hero, alt: "Group photo" },
-  { src: p1, alt: "Community outreach" },
-];
 
 function Gallery() {
   const [open, setOpen] = useState<number | null>(null);
@@ -45,10 +32,10 @@ function Gallery() {
     },
   });
 
-  const images = [
-    ...(uploaded ?? []).map((u) => ({ src: u.public_url, alt: u.title ?? "Unify Youth Group photo" })),
-    ...staticImages,
-  ];
+  const images = (uploaded ?? []).map((u) => ({
+    src: u.public_url,
+    alt: u.title ?? "Unify Youth Group photo",
+  }));
 
   return (
     <div>
@@ -60,21 +47,27 @@ function Gallery() {
       </section>
 
       <section className="container-page py-14">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          {images.map((img, i) => (
-            <button
-              key={i}
-              onClick={() => setOpen(i)}
-              className="group relative overflow-hidden rounded-xl aspect-square bg-muted"
-            >
-              <img src={img.src} alt={img.alt} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-              <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/30 transition" />
-            </button>
-          ))}
-        </div>
+        {images.length === 0 ? (
+          <p className="text-muted-foreground">
+            Photos will appear here once the administrator uploads them.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+            {images.map((img, i) => (
+              <button
+                key={i}
+                onClick={() => setOpen(i)}
+                className="group relative overflow-hidden rounded-xl aspect-square bg-muted"
+              >
+                <img src={img.src} alt={img.alt} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/30 transition" />
+              </button>
+            ))}
+          </div>
+        )}
       </section>
 
-      {open !== null && (
+      {open !== null && images[open] && (
         <div
           className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setOpen(null)}
