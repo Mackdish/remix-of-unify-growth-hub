@@ -114,6 +114,9 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
         phone: data.phone,
         email: data.email,
         location: data.location,
+        about_intro: data.about_intro ?? "",
+        vision: data.vision ?? "",
+        mission: data.mission ?? "",
         marquee_enabled: data.marquee_enabled,
       });
     }
