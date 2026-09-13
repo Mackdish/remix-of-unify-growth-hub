@@ -110,8 +110,10 @@ const AddMemberInput = z.object({
     "project_manager",
     "super_admin",
   ]),
-  createLogin: z.boolean(),
+  /** none = record only, password = admin sets a temp password, email = emailed set-password link */
+  access: z.enum(["none", "password", "email"]).default("email"),
   password: z.string().max(72).optional().or(z.literal("")),
+  redirectTo: z.string().trim().url().max(300).optional().or(z.literal("")),
 });
 
 /**
@@ -129,11 +131,12 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
     );
 
     const email = (data.email ?? "").trim().toLowerCase();
-    if (data.createLogin) {
-      if (!email) throw new Error("An email is required to create a login");
-      if (!data.password || data.password.length < 8) {
-        throw new Error("Password must be at least 8 characters");
-      }
+    const wantsLogin = data.access !== "none";
+    if (wantsLogin && !email) {
+      throw new Error("An email is required to give this member a login");
+    }
+    if (data.access === "password" && (!data.password || data.password.length < 8)) {
+      throw new Error("Password must be at least 8 characters");
     }
 
     const { data: existing } = await supabaseAdmin
@@ -151,7 +154,7 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         phone: (data.phone ?? "").trim() || null,
         email: email || null,
         notes: (data.notes ?? "").trim() || null,
-        status: data.createLogin ? "active" : "pending",
+        status: wantsLogin ? "active" : "pending",
       })
       .select("id")
       .single();
@@ -159,25 +162,49 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       throw new Error(insErr?.message ?? "Could not save the member");
     }
 
-    if (!data.createLogin) {
-      return { ok: true, memberId: member.id, loginCreated: false, email: null };
+    if (!wantsLogin) {
+      return {
+        ok: true,
+        memberId: member.id,
+        loginCreated: false,
+        emailSent: false,
+        email: null as string | null,
+      };
     }
 
-    const { data: created, error: cErr } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: data.password!,
-        email_confirm: true,
-        user_metadata: { full_name: data.fullName },
-      });
-    if (cErr || !created?.user) {
-      // Keep the member record; report why the login failed.
-      throw new Error(
-        `Member saved, but the login failed: ${cErr?.message ?? "unknown error"}`,
-      );
-    }
+    const redirectTo = (data.redirectTo ?? "").trim() || undefined;
+    let userId: string;
+    let emailSent = false;
 
-    const userId = created.user.id;
+    if (data.access === "email") {
+      const { data: invited, error: iErr } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          data: { full_name: data.fullName },
+          ...(redirectTo ? { redirectTo } : {}),
+        });
+      if (iErr || !invited?.user) {
+        throw new Error(
+          `Member saved, but the invitation email failed: ${iErr?.message ?? "unknown error"}`,
+        );
+      }
+      userId = invited.user.id;
+      emailSent = true;
+    } else {
+      const { data: created, error: cErr } =
+        await supabaseAdmin.auth.admin.createUser({
+          email,
+          password: data.password!,
+          email_confirm: true,
+          user_metadata: { full_name: data.fullName },
+        });
+      if (cErr || !created?.user) {
+        // Keep the member record; report why the login failed.
+        throw new Error(
+          `Member saved, but the login failed: ${cErr?.message ?? "unknown error"}`,
+        );
+      }
+      userId = created.user.id;
+    }
 
     await supabaseAdmin
       .from("members")
@@ -191,5 +218,5 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         { onConflict: "user_id,role" },
       );
 
-    return { ok: true, memberId: member.id, loginCreated: true, email };
+    return { ok: true, memberId: member.id, loginCreated: true, emailSent, email };
   });
