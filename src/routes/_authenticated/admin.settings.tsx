@@ -30,6 +30,12 @@ export const Route = createFileRoute("/_authenticated/admin/settings")({
 
 const CATEGORIES = ["gallery", "projects", "hero"] as const;
 
+const CATEGORY_LABEL: Record<(typeof CATEGORIES)[number], string> = {
+  gallery: "Gallery photo",
+  projects: "Project photo",
+  hero: "Homepage background",
+};
+
 function ControlPanel() {
   const { can, allowed, loading: checking, isSuperAdmin } = useRequirePermission("manage_content");
   const canEditSettings = can("manage_settings");
