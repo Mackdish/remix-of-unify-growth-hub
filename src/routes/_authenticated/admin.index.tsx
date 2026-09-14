@@ -441,6 +441,9 @@ function AddMemberCard() {
       if (res.emailSent && res.email) {
         setIssued(null);
         toast.success(`Invitation sent to ${res.email} — they set their own password`);
+      } else if (res.existingAccount && res.email) {
+        setIssued(null);
+        toast.success(`Member added and linked to the existing login for ${res.email}`);
       } else if (res.loginCreated && res.email) {
         setIssued({ email: res.email, password: form.password });
         toast.success("Member added with a login and role");
@@ -726,7 +729,7 @@ function ApproveAccountsCard({ members, unlinked }: { members: MemberLite[]; unl
           )}
           {availableUsers.length === 0 && unlinked.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              No unlinked signed-up users yet. Ask them to sign up at <span className="font-mono">/auth</span>, then refresh.
+              No unlinked accounts are available. Add the member above with email activation or a temporary password.
             </p>
           )}
         </div>

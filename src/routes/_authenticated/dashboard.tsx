@@ -38,15 +38,17 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
 const fmt = (n: number) => `KSh ${n.toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 function Dashboard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["my-financial-summary"],
     queryFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
-      const [{ data: member }, { data: roles }] = await Promise.all([
+      const [{ data: member, error: memberError }, { data: roles, error: rolesError }] = await Promise.all([
         supabase.from("members").select("id, member_code, full_name, phone, email").eq("user_id", uid ?? "").maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", uid ?? ""),
       ]);
+      if (memberError) throw memberError;
+      if (rolesError) throw rolesError;
       let transactions: Txn[] = [];
       if (member) {
         const { data: txns, error } = await supabase
@@ -60,11 +62,12 @@ function Dashboard() {
       }
       let loans: { amount: number; purpose: string; status: string; due_date: string | null; created_at: string }[] = [];
       if (member) {
-        const { data: lr } = await supabase
+        const { data: lr, error: loanError } = await supabase
           .from("loan_requests")
           .select("amount, purpose, status, due_date, created_at")
           .eq("member_id", member.id)
           .order("created_at", { ascending: false });
+        if (loanError) throw loanError;
         loans = (lr ?? []) as typeof loans;
       }
       const isAdmin = (roles ?? []).some((r: { role: string }) =>
@@ -148,6 +151,16 @@ function Dashboard() {
     return <div className="container-page py-24 text-center text-muted-foreground">Loading your dashboard…</div>;
   }
 
+  if (error) {
+    return (
+      <div className="container-page py-16 text-center">
+        <h1 className="text-2xl font-semibold text-foreground">We couldn’t load your financial records</h1>
+        <p className="mt-3 text-sm text-muted-foreground">Please try again. If this continues, ask an administrator to check your account link.</p>
+        <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-6">Try again</button>
+      </div>
+    );
+  }
+
   if (!data?.member) {
     return (
       <div className="container-page py-16">
@@ -195,9 +208,9 @@ function Dashboard() {
         {(() => {
           const next = (data.loans ?? [])
             .filter((l) => l.due_date && (l.status === "disbursed" || l.status === "approved"))
-            .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))[0];
+            .sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)))[0];
           if (!next) return null;
-          const overdue = new Date(next.due_date!) < new Date();
+          const overdue = new Date(String(next.due_date)) < new Date();
           return (
             <div className="mt-1 text-sm opacity-85">
               {overdue ? "Loan repayment overdue since" : "Next loan due"}: {next.due_date}
