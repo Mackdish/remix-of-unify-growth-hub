@@ -38,12 +38,13 @@ function LoansPage() {
   const qc = useQueryClient();
   const [form, setForm] = useState({ amount: "", purpose: "", months: "" });
 
-  const { data: member } = useQuery({
+  const { data: member, isLoading: memberLoading, error: memberError } = useQuery({
     queryKey: ["my-member"],
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data } = await supabase.from("members").select("id, full_name, member_code").eq("user_id", u.user.id).maybeSingle();
+      const { data, error } = await supabase.from("members").select("id, full_name, member_code").eq("user_id", u.user.id).maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
@@ -55,7 +56,7 @@ function LoansPage() {
       const { data, error } = await supabase
         .from("loan_requests")
         .select("*")
-        .eq("member_id", member!.id)
+        .eq("member_id", member?.id ?? "")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as LoanRequest[];
@@ -95,6 +96,14 @@ function LoansPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  if (memberLoading) {
+    return <div className="container-page py-16 text-center text-muted-foreground">Loading your loans…</div>;
+  }
+
+  if (memberError) {
+    return <div className="container-page py-16 text-center text-destructive">We couldn’t load your member account. Please try again.</div>;
+  }
 
   if (!member) {
     return (

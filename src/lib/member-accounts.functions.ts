@@ -139,44 +139,77 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       throw new Error("Password must be at least 8 characters");
     }
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existingCode, error: existingCodeError } = await supabaseAdmin
       .from("members")
       .select("id")
       .eq("member_code", data.memberCode)
       .maybeSingle();
-    if (existing) throw new Error(`Member code ${data.memberCode} is already taken`);
+    if (existingCodeError) throw new Error(existingCodeError.message);
+    if (existingCode) throw new Error(`Member code ${data.memberCode} is already taken`);
 
-    const { data: member, error: insErr } = await supabaseAdmin
-      .from("members")
-      .insert({
-        member_code: data.memberCode,
-        full_name: data.fullName,
-        phone: (data.phone ?? "").trim() || null,
-        email: email || null,
-        notes: (data.notes ?? "").trim() || null,
-        status: wantsLogin ? "active" : "pending",
-      })
-      .select("id")
-      .single();
-    if (insErr || !member) {
-      throw new Error(insErr?.message ?? "Could not save the member");
+    if (email) {
+      const { data: existingEmail, error: existingEmailError } = await supabaseAdmin
+        .from("members")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+      if (existingEmailError) throw new Error(existingEmailError.message);
+      if (existingEmail) throw new Error("A member already uses this email address");
     }
 
     if (!wantsLogin) {
+      const { data: member, error: insertError } = await supabaseAdmin
+        .from("members")
+        .insert({
+          member_code: data.memberCode,
+          full_name: data.fullName,
+          phone: (data.phone ?? "").trim() || null,
+          email: email || null,
+          notes: (data.notes ?? "").trim() || null,
+          status: "pending",
+        })
+        .select("id")
+        .single();
+      if (insertError || !member) {
+        throw new Error(insertError?.message ?? "Could not save the member");
+      }
       return {
         ok: true,
         memberId: member.id,
         loginCreated: false,
         emailSent: false,
+        existingAccount: false,
         email: null as string | null,
       };
     }
 
     const redirectTo = (data.redirectTo ?? "").trim() || undefined;
-    let userId: string;
+    let userId = "";
     let emailSent = false;
+    let existingAccount = false;
+    let createdAuthUser = false;
 
-    if (data.access === "email") {
+    const { data: authUsers, error: listUsersError } =
+      await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (listUsersError) throw new Error(listUsersError.message);
+    const existingAuthUser = authUsers.users.find(
+      (user) => user.email?.toLowerCase() === email,
+    );
+
+    if (existingAuthUser) {
+      const { data: linkedMember, error: linkedMemberError } = await supabaseAdmin
+        .from("members")
+        .select("id")
+        .eq("user_id", existingAuthUser.id)
+        .maybeSingle();
+      if (linkedMemberError) throw new Error(linkedMemberError.message);
+      if (linkedMember) throw new Error("This email is already linked to a member account");
+      if (data.access === "password") {
+        throw new Error("This email already has a login. Choose email activation to link it safely.");
+      }
+      userId = existingAuthUser.id;
+      existingAccount = true;
+    } else if (data.access === "email") {
       const { data: invited, error: iErr } =
         await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
           data: { full_name: data.fullName },
@@ -189,11 +222,16 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       }
       userId = invited.user.id;
       emailSent = true;
+      createdAuthUser = true;
     } else {
+      const password = data.password;
+      if (!password || password.length < 8) {
+        throw new Error("Password must be at least 8 characters");
+      }
       const { data: created, error: cErr } =
         await supabaseAdmin.auth.admin.createUser({
           email,
-          password: data.password!,
+          password,
           email_confirm: true,
           user_metadata: { full_name: data.fullName },
         });
@@ -204,19 +242,45 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         );
       }
       userId = created.user.id;
+      createdAuthUser = true;
     }
 
-    await supabaseAdmin
+    const { data: member, error: insertError } = await supabaseAdmin
       .from("members")
-      .update({ user_id: userId })
-      .eq("id", member.id);
+      .insert({
+        member_code: data.memberCode,
+        full_name: data.fullName,
+        phone: (data.phone ?? "").trim() || null,
+        email,
+        notes: (data.notes ?? "").trim() || null,
+        status: "active",
+        user_id: userId,
+      })
+      .select("id")
+      .single();
+    if (insertError || !member) {
+      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error(insertError?.message ?? "Could not save the member");
+    }
 
-    await supabaseAdmin
+    const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .upsert(
         { user_id: userId, role: data.role },
         { onConflict: "user_id,role" },
       );
+    if (roleError) {
+      await supabaseAdmin.from("members").delete().eq("id", member.id);
+      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error(`Could not assign the selected role: ${roleError.message}`);
+    }
 
-    return { ok: true, memberId: member.id, loginCreated: true, emailSent, email };
+    return {
+      ok: true,
+      memberId: member.id,
+      loginCreated: true,
+      emailSent,
+      existingAccount,
+      email,
+    };
   });
