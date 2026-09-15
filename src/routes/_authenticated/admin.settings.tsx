@@ -61,6 +61,7 @@ function ControlPanel() {
 
       <SettingsCard isSuper={canEditSettings || isSuperAdmin} />
       <NoticesCard />
+      <ProjectsCard />
       <ImagesCard />
 
       <section className="mt-8 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
