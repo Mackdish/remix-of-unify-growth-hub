@@ -15,6 +15,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { NoticeMarquee } from "@/components/notice-marquee";
 import { supabase } from "@/integrations/supabase/client";
+import { Toaster } from "sonner";
 
 
 function NotFoundComponent() {
@@ -136,6 +137,7 @@ function RootComponent() {
           <Outlet />
         </main>
         <SiteFooter />
+        <Toaster richColors position="top-right" />
       </div>
     </QueryClientProvider>
   );
