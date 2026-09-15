@@ -404,6 +404,8 @@ function AddMemberCard() {
   const addMember = useServerFn(addMemberWithAccess);
   const [open, setOpen] = useState(false);
   const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     member_code: "",
     full_name: "",
@@ -422,6 +424,8 @@ function AddMemberCard() {
 
   const create = useMutation({
     mutationFn: async () => {
+      setResultMessage(null);
+      setErrorMessage(null);
       return await addMember({
         data: {
           memberCode: form.member_code.trim(),
@@ -438,18 +442,19 @@ function AddMemberCard() {
       });
     },
     onSuccess: (res) => {
+      let message = "Member added — pending account approval";
       if (res.emailSent && res.email) {
         setIssued(null);
-        toast.success(`Invitation sent to ${res.email} — they set their own password`);
+        message = `Member added. An activation email was sent to ${res.email}.`;
       } else if (res.existingAccount && res.email) {
         setIssued(null);
-        toast.success(`Member added and linked to the existing login for ${res.email}`);
+        message = `Member added and linked to the existing login for ${res.email}.`;
       } else if (res.loginCreated && res.email) {
         setIssued({ email: res.email, password: form.password });
-        toast.success("Member added with a login and role");
-      } else {
-        toast.success("Member added — pending account approval");
+        message = "Member added with a login and assigned role.";
       }
+      setResultMessage(message);
+      toast.success(message);
       setForm({
         member_code: "",
         full_name: "",
@@ -464,7 +469,11 @@ function AddMemberCard() {
       qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
       qc.invalidateQueries({ queryKey: ["users-with-roles"] });
     },
-    onError: (e: Error) => toast.error(e.message || "Could not add the member"),
+    onError: (e: Error) => {
+      const message = e.message || "Could not add the member";
+      setErrorMessage(message);
+      toast.error(message);
+    },
   });
 
   return (
@@ -487,10 +496,12 @@ function AddMemberCard() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!form.member_code.trim() || !form.full_name.trim()) {
+              setErrorMessage("Member code and full name are required");
               toast.error("Member code and full name are required");
               return;
             }
             if (form.access !== "none" && !form.email.trim()) {
+              setErrorMessage("An email is required to create a login");
               toast.error("An email is required to create a login");
               return;
             }
@@ -599,6 +610,19 @@ function AddMemberCard() {
           >
             {create.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Add member
           </button>
+
+          {resultMessage && (
+            <div role="status" className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm text-foreground">
+              <CheckCircle2 className="mr-2 inline h-4 w-4 text-primary" />
+              {resultMessage}
+            </div>
+          )}
+          {errorMessage && (
+            <div role="alert" className="md:col-span-6 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              <AlertTriangle className="mr-2 inline h-4 w-4" />
+              {errorMessage}
+            </div>
+          )}
 
           {issued && (
             <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
