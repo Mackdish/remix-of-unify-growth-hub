@@ -16,6 +16,9 @@ import {
   Save,
   Eye,
   EyeOff,
+  FolderKanban,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/settings")({
@@ -61,6 +64,7 @@ function ControlPanel() {
 
       <SettingsCard isSuper={canEditSettings || isSuperAdmin} />
       <NoticesCard />
+      <ProjectsCard />
       <ImagesCard />
 
       <section className="mt-8 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
@@ -365,6 +369,253 @@ function NoticesCard() {
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </button>
               </div>
+            </li>
+          ))
+        )}
+      </ul>
+    </section>
+  );
+}
+
+/* ---------------- Projects ---------------- */
+type ProjectRow = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  progress: number;
+  image_url: string | null;
+  sort_order: number;
+};
+
+const PROJECT_STATUSES = ["Ongoing", "Planned", "Completed"] as const;
+
+function ProjectsCard() {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState({
+    title: "",
+    description: "",
+    status: "Ongoing",
+    progress: 0,
+    image_url: "",
+  });
+
+  const { data: projects } = useQuery({
+    queryKey: ["admin-projects"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, title, description, status, progress, image_url, sort_order")
+        .order("sort_order")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as ProjectRow[];
+    },
+  });
+
+  const { data: projectImages } = useQuery({
+    queryKey: ["site-images", "projects"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("site_images")
+        .select("id, title, public_url")
+        .eq("category", "projects")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["admin-projects"] });
+    qc.invalidateQueries({ queryKey: ["public-projects"] });
+  };
+
+  const add = useMutation({
+    mutationFn: async () => {
+      const title = draft.title.trim();
+      if (!title) throw new Error("Project title is required");
+      const { data: u } = await supabase.auth.getUser();
+      const nextOrder = (projects?.length ?? 0) + 1;
+      const { error } = await supabase.from("projects").insert({
+        title,
+        description: draft.description.trim(),
+        status: draft.status,
+        progress: Math.min(100, Math.max(0, Number(draft.progress) || 0)),
+        image_url: draft.image_url || null,
+        sort_order: nextOrder,
+        created_by: u.user?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Project added");
+      setDraft({ title: "", description: "", status: "Ongoing", progress: 0, image_url: "" });
+      refresh();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const update = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<ProjectRow> }) => {
+      const { error } = await supabase.from("projects").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Project updated"); refresh(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const move = useMutation({
+    mutationFn: async ({ index, dir }: { index: number; dir: -1 | 1 }) => {
+      const list = projects ?? [];
+      const target = list[index + dir];
+      const current = list[index];
+      if (!target || !current) return;
+      const a = await supabase.from("projects").update({ sort_order: target.sort_order }).eq("id", current.id);
+      if (a.error) throw a.error;
+      const b = await supabase.from("projects").update({ sort_order: current.sort_order }).eq("id", target.id);
+      if (b.error) throw b.error;
+    },
+    onSuccess: refresh,
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast.success("Project removed"); refresh(); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <section className="mt-8 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
+      <h2 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
+        <FolderKanban className="h-5 w-5 text-primary" /> Projects
+      </h2>
+      <p className="text-xs text-muted-foreground mt-0.5">
+        Anything you add here appears on the public projects page and the homepage.
+      </p>
+
+      <form onSubmit={(e) => { e.preventDefault(); add.mutate(); }} className="mt-5 grid md:grid-cols-6 gap-3">
+        <input
+          required
+          maxLength={140}
+          placeholder="Project title"
+          value={draft.title}
+          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          className="md:col-span-3 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+        />
+        <select
+          value={draft.status}
+          onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+          className="md:col-span-2 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+        >
+          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={draft.progress}
+          onChange={(e) => setDraft({ ...draft, progress: Number(e.target.value) })}
+          className="rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+        />
+        <textarea
+          rows={2}
+          maxLength={800}
+          placeholder="Short description"
+          value={draft.description}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+          className="md:col-span-4 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+        />
+        <select
+          value={draft.image_url}
+          onChange={(e) => setDraft({ ...draft, image_url: e.target.value })}
+          className="md:col-span-2 rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+        >
+          <option value="">Picture: none</option>
+          {(projectImages ?? []).map((img) => (
+            <option key={img.id} value={img.public_url}>{img.title ?? "Untitled"}</option>
+          ))}
+        </select>
+        <button type="submit" disabled={add.isPending} className="btn-primary md:col-span-6 disabled:opacity-60">
+          {add.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Add project
+        </button>
+      </form>
+
+      <ul className="mt-5 divide-y divide-border rounded-lg border border-border">
+        {(projects ?? []).length === 0 ? (
+          <li className="p-4 text-sm text-muted-foreground">No projects yet.</li>
+        ) : (
+          (projects ?? []).map((p, i) => (
+            <li key={p.id} className="p-4 grid md:grid-cols-6 gap-3 items-center">
+              <input
+                defaultValue={p.title}
+                maxLength={140}
+                onBlur={(e) => e.target.value.trim() !== p.title && update.mutate({ id: p.id, patch: { title: e.target.value.trim() } })}
+                className="md:col-span-2 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
+              <select
+                value={p.status}
+                onChange={(e) => update.mutate({ id: p.id, patch: { status: e.target.value } })}
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                defaultValue={p.progress}
+                onBlur={(e) => Number(e.target.value) !== p.progress && update.mutate({ id: p.id, patch: { progress: Math.min(100, Math.max(0, Number(e.target.value) || 0)) } })}
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
+              <select
+                value={p.image_url ?? ""}
+                onChange={(e) => update.mutate({ id: p.id, patch: { image_url: e.target.value || null } })}
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Picture: none</option>
+                {(projectImages ?? []).map((img) => (
+                  <option key={img.id} value={img.public_url}>{img.title ?? "Untitled"}</option>
+                ))}
+                {p.image_url && !(projectImages ?? []).some((im) => im.public_url === p.image_url) && (
+                  <option value={p.image_url}>Current picture</option>
+                )}
+              </select>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => move.mutate({ index: i, dir: -1 })}
+                  disabled={i === 0}
+                  className="btn-outline !py-1.5 !px-2 text-xs disabled:opacity-40"
+                  aria-label="Move up"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => move.mutate({ index: i, dir: 1 })}
+                  disabled={i === (projects ?? []).length - 1}
+                  className="btn-outline !py-1.5 !px-2 text-xs disabled:opacity-40"
+                  aria-label="Move down"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => remove.mutate(p.id)}
+                  className="btn-outline !py-1.5 !px-3 text-xs text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <textarea
+                rows={2}
+                maxLength={800}
+                defaultValue={p.description}
+                onBlur={(e) => e.target.value !== p.description && update.mutate({ id: p.id, patch: { description: e.target.value } })}
+                className="md:col-span-6 rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              />
             </li>
           ))
         )}
