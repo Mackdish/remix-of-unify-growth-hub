@@ -25,12 +25,21 @@ function newToken() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data, error } = await context.supabase.rpc("is_admin", {
-    _user_id: context.userId,
-  });
+async function getCallerRoles(context: { supabase: any; userId: string }) {
+  const { data, error } = await context.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId);
   if (error) throw new Error(error.message);
-  if (!data) throw new Response("Forbidden", { status: 403 });
+  return (data ?? []).map((row: { role: string }) => row.role);
+}
+
+async function assertCanInviteMembers(context: { supabase: any; userId: string }) {
+  const roles = await getCallerRoles(context);
+  if (!roles.some((role: string) => ["super_admin", "secretary"].includes(role))) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+  return roles;
 }
 
 /** Admin: create an invite (email and/or phone) that lets the person set their own password. */
@@ -38,12 +47,19 @@ export const createMemberInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const callerRoles = await assertCanInviteMembers(context);
 
-    const email = data.email ? data.email.toLowerCase() : null;
+    if (!data.email) {
+      throw new Error("A member invitation must be tied to an email address.");
+    }
+
+    const email = data.email.toLowerCase();
     const phone = data.phone || null;
-    if (!email && !phone) {
-      throw new Error("Provide an email address or a phone number");
+    if (data.role !== "member" && !callerRoles.includes("super_admin")) {
+      throw new Response(
+        "Only a super admin can invite an administrative role.",
+        { status: 403 },
+      );
     }
 
     const { supabaseAdmin } = await import(
@@ -121,7 +137,7 @@ export const revokeMemberInvite = createServerFn({ method: "POST" })
     z.object({ id: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertCanInviteMembers(context);
     const { error } = await context.supabase
       .from("member_invites")
       .delete()
@@ -184,10 +200,12 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
     if (invite.accepted_at) throw new Error("This invite has already been used");
     if (new Date(invite.expires_at) < new Date())
       throw new Error("This invite link has expired");
+    if (!invite.email) {
+      throw new Error("This invite is not bound to an email address. Ask the admin for a new invitation.");
+    }
 
     const email = data.email.toLowerCase();
-    // If the invite was issued to a specific email, it must match.
-    if (invite.email && invite.email.toLowerCase() !== email) {
+    if (invite.email.toLowerCase() !== email) {
       throw new Error("Use the email address this invite was sent to");
     }
 
@@ -203,24 +221,56 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
     }
     const userId = created.user.id;
 
-    if (invite.member_id) {
-      await supabaseAdmin
-        .from("members")
-        .update({ user_id: userId, status: "active", email })
-        .eq("id", invite.member_id);
+    if (!invite.member_id) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error("This invite is not linked to a member record.");
     }
 
-    await supabaseAdmin
+    const { data: linkedMember, error: linkError } = await supabaseAdmin
+      .from("members")
+      .update({ user_id: userId, status: "active", email })
+      .eq("id", invite.member_id)
+      .is("user_id", null)
+      .select("id")
+      .maybeSingle();
+    if (linkError || !linkedMember) {
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error(linkError?.message ?? "This member account is already linked.");
+    }
+
+    const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .upsert(
         { user_id: userId, role: invite.role },
         { onConflict: "user_id,role" },
       );
+    if (roleError) {
+      await supabaseAdmin
+        .from("members")
+        .update({ user_id: null, status: "pending" })
+        .eq("id", invite.member_id)
+        .eq("user_id", userId);
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error("Could not assign the invited role: " + roleError.message);
+    }
 
-    await supabaseAdmin
+    const { data: claimedInvite, error: acceptError } = await supabaseAdmin
       .from("member_invites")
       .update({ accepted_at: new Date().toISOString(), email })
-      .eq("id", invite.id);
+      .eq("id", invite.id)
+      .is("accepted_at", null)
+      .select("id")
+      .maybeSingle();
+    if (acceptError || !claimedInvite) {
+      await supabaseAdmin
+        .from("members")
+        .update({ user_id: null, status: "pending" })
+        .eq("id", invite.member_id)
+        .eq("user_id", userId);
+      await supabaseAdmin.from("user_roles").delete().eq("user_id", userId).eq("role", invite.role);
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error(acceptError?.message ?? "This invitation has already been used.");
+    }
 
     return { ok: true, email };
   });
