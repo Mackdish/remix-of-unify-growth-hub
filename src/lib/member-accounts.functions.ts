@@ -105,12 +105,6 @@ export const resetMemberPassword = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => ResetInput.parse(data))
   .handler(async ({ data, context }) => {
     const callerRoles = await assertCanManageMembers(context);
-    if (data.role !== "member" && !callerRoles.includes("super_admin")) {
-      throw new Response(
-        "Only a super admin can assign an administrative role.",
-        { status: 403 },
-      );
-    }
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
@@ -160,7 +154,13 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => AddMemberInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const callerRoles = await assertCanManageMembers(context);
+    if (data.role !== "member" && !callerRoles.includes("super_admin")) {
+      throw new Response(
+        "Only a super admin can assign an administrative role.",
+        { status: 403 },
+      );
+    }
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
