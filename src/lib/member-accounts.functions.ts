@@ -13,12 +13,31 @@ const ResetInput = z.object({
   password: z.string().min(8).max(72),
 });
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  const { data, error } = await context.supabase.rpc("is_admin", {
-    _user_id: context.userId,
-  });
+async function getCallerRoles(context: { supabase: any; userId: string }) {
+  const { data, error } = await context.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId);
   if (error) throw new Error(error.message);
-  if (!data) throw new Response("Forbidden", { status: 403 });
+  return (data ?? []).map((row: { role: string }) => row.role);
+}
+
+async function assertAdmin(context: { supabase: any; userId: string }) {
+  const roles = await getCallerRoles(context);
+  if (!roles.some((role: string) =>
+    ["super_admin", "treasurer", "secretary", "project_manager"].includes(role)
+  )) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+  return roles;
+}
+
+async function assertCanManageMembers(context: { supabase: any; userId: string }) {
+  const roles = await getCallerRoles(context);
+  if (!roles.some((role: string) => ["super_admin", "secretary"].includes(role))) {
+    throw new Response("Forbidden", { status: 403 });
+  }
+  return roles;
 }
 
 /** Create an auth login for an existing member record and link it. */
@@ -26,7 +45,7 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    await assertCanManageMembers(context);
     const email = data.email.toLowerCase();
 
     const { supabaseAdmin } = await import(
@@ -60,11 +79,22 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
       .from("members")
       .update({ user_id: userId, status: "active", email })
       .eq("id", member.id);
-    if (linkErr) throw new Error(linkErr.message);
+    if (linkErr) {
+      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error(linkErr.message);
+    }
 
-    await supabaseAdmin
+    const { error: roleError } = await supabaseAdmin
       .from("user_roles")
       .upsert({ user_id: userId, role: "member" }, { onConflict: "user_id,role" });
+    if (roleError) {
+      await supabaseAdmin
+        .from("members")
+        .update({ user_id: null, status: "pending" })
+        .eq("id", member.id);
+      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
+      throw new Error("Could not assign member role: " + roleError.message);
+    }
 
     return { ok: true, email };
   });
@@ -74,7 +104,13 @@ export const resetMemberPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => ResetInput.parse(data))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context);
+    const callerRoles = await assertCanManageMembers(context);
+    if (data.role !== "member" && !callerRoles.includes("super_admin")) {
+      throw new Response(
+        "Only a super admin can assign an administrative role.",
+        { status: 403 },
+      );
+    }
 
     const { supabaseAdmin } = await import(
       "@/integrations/supabase/client.server"
