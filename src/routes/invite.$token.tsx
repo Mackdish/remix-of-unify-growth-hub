@@ -5,6 +5,7 @@ import { Loader2, ShieldCheck, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
+import { SITE_URL } from "@/lib/site-config";
 import {
   acceptMemberInvite,
   getMemberInvite,
@@ -68,7 +69,7 @@ function AcceptInvite() {
         password,
         options: {
           data: { full_name: state.fullName },
-          emailRedirectTo: `${window.location.origin}/auth?invite=${encodeURIComponent(token)}`,
+          emailRedirectTo: `${SITE_URL}/auth?invite=${encodeURIComponent(token)}`,
         },
       });
       if (error) throw error;
