@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
-import { createMemberCredentials, resetMemberPassword, addMemberWithAccess } from "@/lib/member-accounts.functions";
+import { addMemberWithAccess } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
@@ -24,7 +24,6 @@ import {
   Loader2,
   HandCoins,
   Settings,
-  KeyRound,
   Send,
 } from "lucide-react";
 
@@ -221,7 +220,6 @@ function AdminDashboard() {
         <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
       )}
       {can("invite_members") && <InviteMembersCard members={members ?? []} />}
-      {can("invite_members") && <MemberCredentialsCard members={members ?? []} />}
 
       <MyAccessCard roles={roles} />
 
@@ -403,7 +401,6 @@ function AddMemberCard() {
   const qc = useQueryClient();
   const addMember = useServerFn(addMemberWithAccess);
   const [open, setOpen] = useState(false);
-  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -418,8 +415,7 @@ function AddMemberCard() {
       | "secretary"
       | "project_manager"
       | "super_admin",
-    access: "email" as "none" | "password" | "email",
-    password: "",
+    access: "email" as "none" | "email",
   });
 
   const create = useMutation({
@@ -435,7 +431,6 @@ function AddMemberCard() {
           notes: form.notes.trim(),
           role: form.role,
           access: form.access,
-          password: form.password,
           redirectTo:
             typeof window !== "undefined" ? `${window.location.origin}/auth` : "",
         },
@@ -443,15 +438,10 @@ function AddMemberCard() {
     },
     onSuccess: (res) => {
       let message = "Member added — pending account approval";
-      if (res.emailSent && res.email) {
-        setIssued(null);
-        message = `Member added. An activation email was sent to ${res.email}.`;
-      } else if (res.existingAccount && res.email) {
-        setIssued(null);
-        message = `Member added and linked to the existing login for ${res.email}.`;
-      } else if (res.loginCreated && res.email) {
-        setIssued({ email: res.email, password: form.password });
-        message = "Member added with a login and assigned role.";
+      if (res.email) {
+        message = res.inviteToken
+          ? `Member added. Activation link created for ${res.email}.`
+          : `Member added for ${res.email}.`;
       }
       setResultMessage(message);
       toast.success(message);
@@ -463,7 +453,6 @@ function AddMemberCard() {
         notes: "",
         role: "member",
         access: "email",
-        password: "",
       });
       qc.invalidateQueries({ queryKey: ["admin-members"] });
       qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
@@ -484,7 +473,7 @@ function AddMemberCard() {
             <UserPlus className="h-5 w-5 text-primary" /> Add member
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Create the member record, pick their role, and optionally issue sign-in details right away.
+            Create the member record and optionally create a one-time activation link.
           </p>
         </div>
         <button onClick={() => setOpen((v) => !v)} className="btn-outline !py-2 !px-4 text-sm">
@@ -562,44 +551,16 @@ function AddMemberCard() {
             <span className="text-xs text-muted-foreground">Sign-in access</span>
             <select
               value={form.access}
-              onChange={(e) => {
-                const access = e.target.value as typeof form.access;
-                setForm({
-                  ...form,
-                  access,
-                  password:
-                    access === "password" && !form.password ? randomPassword() : form.password,
-                });
-              }}
+              onChange={(e) => setForm({ ...form, access: e.target.value as typeof form.access })}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
             >
-              <option value="email">Email them a link to set their own password</option>
-              <option value="password">I set a temporary password now</option>
+              <option value="email">Create an activation link</option>
               <option value="none">No login yet (record only)</option>
             </select>
           </label>
-          {form.access === "password" && (
-            <div className="md:col-span-3 flex gap-2 md:mt-5">
-              <input
-                minLength={8}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Temporary password (min 8 chars)"
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-2.5 text-sm font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, password: randomPassword() })}
-                className="btn-outline !py-2 !px-3 text-xs"
-              >
-                Generate
-              </button>
-            </div>
-          )}
           {form.access === "email" && (
             <p className="md:col-span-3 text-xs text-muted-foreground md:mt-8">
-              They receive an email with a secure link, set their own password, and their role is
-              assigned automatically.
+              Share the generated activation link with the member. They create their own password; the admin never handles it.
             </p>
           )}
 
@@ -768,176 +729,6 @@ function randomPassword(len = 12) {
   const bytes = new Uint32Array(len);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => chars[b % chars.length]).join("");
-}
-
-function MemberCredentialsCard({ members }: { members: MemberLite[] }) {
-  const qc = useQueryClient();
-  const createCreds = useServerFn(createMemberCredentials);
-  const resetPwd = useServerFn(resetMemberPassword);
-  const [open, setOpen] = useState(false);
-  const [memberId, setMemberId] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
-
-  const withLogin = members.filter((m) => m.user_id);
-  const withoutLogin = members.filter((m) => !m.user_id);
-
-  const [resetId, setResetId] = useState("");
-  const [resetPassword, setResetPassword] = useState("");
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!memberId) return toast.error("Pick a member");
-    setBusy(true);
-    try {
-      await createCreds({ data: { memberId, email, password } });
-      toast.success("Login created and linked");
-      setIssued({ email: email.trim().toLowerCase(), password });
-      setMemberId("");
-      setEmail("");
-      setPassword("");
-      qc.invalidateQueries({ queryKey: ["admin-members"] });
-      qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create login");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetId) return toast.error("Pick a member");
-    setBusy(true);
-    try {
-      await resetPwd({ data: { memberId: resetId, password: resetPassword } });
-      toast.success("Password reset");
-      setIssued({
-        email: members.find((m) => m.id === resetId)?.full_name ?? "member",
-        password: resetPassword,
-      });
-      setResetId("");
-      setResetPassword("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not reset password");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className="mt-4 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
-      <div className="flex justify-between items-center gap-3 flex-wrap">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
-            <KeyRound className="h-5 w-5 text-primary" /> Member login credentials
-          </h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Issue an email + password for a member so they can sign in right away, or reset an existing one.
-          </p>
-        </div>
-        <button onClick={() => setOpen((v) => !v)} className="btn-outline !py-2 !px-4 text-sm">
-          <KeyRound className="h-4 w-4" /> {open ? "Close" : `Assign (${withoutLogin.length})`}
-        </button>
-      </div>
-
-      {open && (
-        <div className="mt-5 grid gap-6 lg:grid-cols-2">
-          <form onSubmit={submit} className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Create a new login</h3>
-            <select
-              value={memberId}
-              onChange={(e) => {
-                setMemberId(e.target.value);
-                setPassword(randomPassword());
-              }}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Select member without a login…</option>
-              {withoutLogin.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.member_code} — {m.full_name}
-                </option>
-              ))}
-            </select>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="member@example.com"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            />
-            <div className="flex gap-2">
-              <input
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Temporary password (min 8 chars)"
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-              />
-              <button type="button" onClick={() => setPassword(randomPassword())} className="btn-outline !py-2 !px-3 text-xs">
-                Generate
-              </button>
-            </div>
-            <button disabled={busy} type="submit" className="btn-primary text-sm disabled:opacity-60">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Create login
-            </button>
-          </form>
-
-          <form onSubmit={doReset} className="space-y-3">
-            <h3 className="text-sm font-semibold text-foreground">Reset an existing password</h3>
-            <select
-              value={resetId}
-              onChange={(e) => {
-                setResetId(e.target.value);
-                setResetPassword(randomPassword());
-              }}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Select member with a login…</option>
-              {withLogin.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.member_code} — {m.full_name}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <input
-                required
-                minLength={8}
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                placeholder="New password (min 8 chars)"
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
-              />
-              <button type="button" onClick={() => setResetPassword(randomPassword())} className="btn-outline !py-2 !px-3 text-xs">
-                Generate
-              </button>
-            </div>
-            <button disabled={busy} type="submit" className="btn-outline text-sm disabled:opacity-60">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Reset password
-            </button>
-          </form>
-
-          {issued && (
-            <div className="lg:col-span-2 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
-              <div className="font-semibold text-foreground">Share these credentials securely</div>
-              <div className="mt-1 font-mono text-xs break-all">
-                {issued.email} · {issued.password}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Shown once here — ask the member to change the password after their first sign-in.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </section>
-  );
 }
 
 function InviteMembersCard({ members }: { members: MemberLite[] }) {
