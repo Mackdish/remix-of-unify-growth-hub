@@ -1,10 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { getAuthenticatedLandingRoute } from "@/lib/auth-routing";
+import { acceptMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -22,10 +24,18 @@ export const Route = createFileRoute("/auth")({
 
 function Auth() {
   const navigate = useNavigate();
+  const claimInvite = useServerFn(acceptMemberInvite);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const claimPendingInvite = async () => {
+    const token = new URLSearchParams(window.location.search).get("invite");
+    if (!token) return;
+    await claimInvite({ data: { token } });
+    window.history.replaceState({}, "", "/auth");
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -45,6 +55,7 @@ function Auth() {
       if (mode === "signin") {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await claimPendingInvite();
         toast.success("Welcome back");
         navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
       } else {
@@ -111,7 +122,7 @@ function Auth() {
         </p>
         <ul className="mt-8 space-y-3 text-sm text-muted-foreground">
           <li className="flex gap-3"><ShieldCheck className="h-5 w-5 text-primary-glow shrink-0" /> Your records are private — only you and authorised admins can view them.</li>
-          <li className="flex gap-3"><Lock className="h-5 w-5 text-primary-glow shrink-0" /> Passwords are encrypted. Contact your admin to reset yours.</li>
+          <li className="flex gap-3"><Lock className="h-5 w-5 text-primary-glow shrink-0" /> Passwords are protected by Supabase Auth. Use the password-reset link if you need to change yours.</li>
         </ul>
       </div>
 
@@ -172,7 +183,7 @@ function Auth() {
         </button>
 
         <p className="mt-6 text-xs text-muted-foreground text-center">
-          New members: after signing in, ask an admin to link your account to your member record.
+          New members should use the invitation link supplied by an administrator. Your password is created by you and is never visible to administrators.
         </p>
       </div>
     </div>
