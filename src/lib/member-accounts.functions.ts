@@ -169,13 +169,13 @@ const AddMemberInput = z.object({
     "super_admin",
   ]),
   access: z.enum(["none", "email"]).default("email"),
+  password: z.string().min(8).max(72).optional(),
   redirectTo: z.string().trim().url().max(500).optional().or(z.literal("")),
 });
 
 /**
- * Add a member record and optionally create a one-time activation link.
- * No Auth Admin API is used here; the member creates their Auth account with
- * the public Supabase signUp flow.
+ * Add a member and, when requested, create their real Supabase Auth login.
+ * The password is used only on the server and is never stored in the database.
  */
 export const addMemberWithAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -192,7 +192,10 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
 
     const email = (data.email ?? "").trim().toLowerCase();
     if (data.access === "email" && !email) {
-      throw new Error("An email is required to create an activation link");
+      throw new Error("An email is required to create a login");
+    }
+    if (data.access === "email" && !data.password) {
+      throw new Error("A password is required to create a login");
     }
 
     const { data: existingCode, error: codeError } = await context.supabase
@@ -223,7 +226,7 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         phone: (data.phone ?? "").trim() || null,
         email: email || null,
         notes: (data.notes ?? "").trim() || null,
-        status: data.access === "email" ? "pending" : "pending",
+        status: "pending",
       })
       .select("id")
       .single();
@@ -240,38 +243,68 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         emailSent: false,
         existingAccount: false,
         email: null as string | null,
-        inviteToken: null as string | null,
       };
     }
 
-    const token = newToken();
-    const { data: invite, error: inviteError } = await context.supabase
-      .from("member_invites")
-      .insert({
-        member_id: member.id,
-        full_name: data.fullName,
-        member_code: data.memberCode,
-        email,
-        phone: (data.phone ?? "").trim() || null,
-        role: data.role,
-        token,
-        invited_by: context.userId,
-      })
-      .select("token")
-      .single();
+    const secret =
+      process.env["SUPABASE_SECRET_KEY"] ||
+      process.env["SUPABASE_SERVICE_ROLE_KEY"];
 
-    if (inviteError || !invite) {
+    if (!secret || !process.env["SUPABASE_URL"]) {
       await context.supabase.from("members").delete().eq("id", member.id);
-      throw new Error(inviteError?.message ?? "Could not create the activation link");
+      throw new Error(
+        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
+      );
+    }
+
+    const admin = createClient<Database>(
+      process.env["SUPABASE_URL"],
+      secret,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const { data: created, error: authError } =
+      await admin.auth.admin.createUser({
+        email,
+        password: data.password!,
+        email_confirm: true,
+        user_metadata: { full_name: data.fullName },
+      });
+
+    if (authError || !created.user) {
+      await context.supabase.from("members").delete().eq("id", member.id);
+      throw new Error(authError?.message ?? "Could not create the member login");
+    }
+
+    const userId = created.user.id;
+
+    const { error: memberUpdateError } = await context.supabase
+      .from("members")
+      .update({ user_id: userId, status: "active" })
+      .eq("id", member.id);
+
+    if (memberUpdateError) {
+      await admin.auth.admin.deleteUser(userId);
+      await context.supabase.from("members").delete().eq("id", member.id);
+      throw new Error(memberUpdateError.message);
+    }
+
+    const { error: roleError } = await context.supabase
+      .from("user_roles")
+      .insert({ user_id: userId, role: data.role });
+
+    if (roleError) {
+      await admin.auth.admin.deleteUser(userId);
+      await context.supabase.from("members").delete().eq("id", member.id);
+      throw new Error(roleError.message);
     }
 
     return {
       ok: true,
       memberId: member.id,
-      loginCreated: false,
+      loginCreated: true,
       emailSent: false,
       existingAccount: false,
       email,
-      inviteToken: invite.token,
     };
   });
