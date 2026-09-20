@@ -63,11 +63,24 @@ function AcceptInvite() {
     if (password !== confirm) return toast.error("Passwords do not match");
     setBusy(true);
     try {
-      await accept({ data: { token, email, password } });
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: { full_name: state.fullName },
+          emailRedirectTo: `${window.location.origin}/auth?invite=${encodeURIComponent(token)}`,
+        },
+      });
       if (error) throw error;
-      toast.success("Account activated — welcome!");
-      navigate({ to: "/dashboard", replace: true });
+
+      if (data.session) {
+        await accept({ data: { token } });
+        toast.success("Account activated — welcome!");
+        navigate({ to: "/dashboard", replace: true });
+      } else {
+        toast.success("Account created. Check your email to confirm it, then sign in to finish activation.");
+        navigate({ to: `/auth?invite=${encodeURIComponent(token)}`, replace: true });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not activate account");
     } finally {
