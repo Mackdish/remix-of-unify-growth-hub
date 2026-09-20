@@ -5,12 +5,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const CreateInput = z.object({
   memberId: z.string().uuid(),
   email: z.string().trim().email().max(255),
-  password: z.string().min(8).max(72),
 });
 
 const ResetInput = z.object({
   memberId: z.string().uuid(),
-  password: z.string().min(8).max(72),
+  redirectTo: z.string().trim().url().max(500).optional(),
 });
 
 async function getCallerRoles(context: { supabase: any; userId: string }) {
@@ -22,16 +21,6 @@ async function getCallerRoles(context: { supabase: any; userId: string }) {
   return (data ?? []).map((row: { role: string }) => row.role);
 }
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
-  const roles = await getCallerRoles(context);
-  if (!roles.some((role: string) =>
-    ["super_admin", "treasurer", "secretary", "project_manager"].includes(role)
-  )) {
-    throw new Response("Forbidden", { status: 403 });
-  }
-  return roles;
-}
-
 async function assertCanManageMembers(context: { supabase: any; userId: string }) {
   const roles = await getCallerRoles(context);
   if (!roles.some((role: string) => ["super_admin", "secretary"].includes(role))) {
@@ -40,7 +29,18 @@ async function assertCanManageMembers(context: { supabase: any; userId: string }
   return roles;
 }
 
-/** Create an auth login for an existing member record and link it. */
+function newToken() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Prepare activation for an existing member.
+ *
+ * Authentication is deliberately created by the member with supabase.auth.signUp().
+ * This keeps Cloudflare deployments independent of the Supabase secret/service-role key.
+ */
 export const createMemberCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateInput.parse(data))
@@ -48,83 +48,72 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
     await assertCanManageMembers(context);
     const email = data.email.toLowerCase();
 
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-
-    const { data: member, error: mErr } = await supabaseAdmin
+    const { data: member, error: memberError } = await context.supabase
       .from("members")
       .select("id, full_name, user_id")
       .eq("id", data.memberId)
       .maybeSingle();
-    if (mErr) throw new Error(mErr.message);
+
+    if (memberError) throw new Error(memberError.message);
     if (!member) throw new Error("Member not found");
     if (member.user_id) throw new Error("This member already has a login");
 
-    const { data: created, error: cErr } =
-      await supabaseAdmin.auth.admin.createUser({
+    const token = newToken();
+    const { data: invite, error: inviteError } = await context.supabase
+      .from("member_invites")
+      .insert({
+        member_id: member.id,
+        full_name: member.full_name,
         email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: { full_name: member.full_name },
-      });
+        role: "member",
+        token,
+        invited_by: context.userId,
+      })
+      .select("token")
+      .single();
 
-    if (cErr || !created?.user) {
-      throw new Error(cErr?.message ?? "Could not create the login");
+    if (inviteError || !invite) {
+      throw new Error(inviteError?.message ?? "Could not create the activation link");
     }
 
-    const userId = created.user.id;
-
-    const { error: linkErr } = await supabaseAdmin
+    const { error: updateError } = await context.supabase
       .from("members")
-      .update({ user_id: userId, status: "active", email })
+      .update({ email, status: "pending" })
       .eq("id", member.id);
-    if (linkErr) {
-      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(linkErr.message);
-    }
 
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert({ user_id: userId, role: "member" }, { onConflict: "user_id,role" });
-    if (roleError) {
-      await supabaseAdmin
-        .from("members")
-        .update({ user_id: null, status: "pending" })
-        .eq("id", member.id);
-      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error("Could not assign member role: " + roleError.message);
-    }
+    if (updateError) throw new Error(updateError.message);
 
-    return { ok: true, email };
+    return { ok: true, email, inviteToken: invite.token };
   });
 
-/** Reset the password of a member's existing login. */
+/**
+ * Password reset is user-controlled. Admins can request the normal Supabase
+ * recovery email, but never set or read another user's password.
+ */
 export const resetMemberPassword = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => ResetInput.parse(data))
   .handler(async ({ data, context }) => {
-    const callerRoles = await assertCanManageMembers(context);
+    await assertCanManageMembers(context);
 
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-
-    const { data: member, error: mErr } = await supabaseAdmin
+    const { data: member, error } = await context.supabase
       .from("members")
-      .select("user_id")
+      .select("email, user_id")
       .eq("id", data.memberId)
       .maybeSingle();
-    if (mErr) throw new Error(mErr.message);
-    if (!member?.user_id) throw new Error("This member has no login yet");
 
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(
-      member.user_id,
-      { password: data.password },
-    );
     if (error) throw new Error(error.message);
+    if (!member?.user_id || !member.email) {
+      throw new Error("This member does not have an email-linked login");
+    }
 
-    return { ok: true };
+    const { error: resetError } = await context.supabase.auth.resetPasswordForEmail(
+      member.email,
+      { redirectTo: data.redirectTo },
+    );
+
+    if (resetError) throw new Error(resetError.message);
+    return { ok: true, email: member.email };
   });
 
 const AddMemberInput = z.object({
@@ -140,21 +129,21 @@ const AddMemberInput = z.object({
     "project_manager",
     "super_admin",
   ]),
-  /** none = record only, password = admin sets a temp password, email = emailed set-password link */
-  access: z.enum(["none", "password", "email"]).default("email"),
-  password: z.string().max(72).optional().or(z.literal("")),
-  redirectTo: z.string().trim().url().max(300).optional().or(z.literal("")),
+  access: z.enum(["none", "email"]).default("email"),
+  redirectTo: z.string().trim().url().max(500).optional().or(z.literal("")),
 });
 
 /**
- * Add a member record and, optionally, an auth login + role in one step.
- * Runs privileged so RLS/grant surprises can't silently block admins.
+ * Add a member record and optionally create a one-time activation link.
+ * No Auth Admin API is used here; the member creates their Auth account with
+ * the public Supabase signUp flow.
  */
 export const addMemberWithAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => AddMemberInput.parse(data))
   .handler(async ({ data, context }) => {
     const callerRoles = await assertCanManageMembers(context);
+
     if (data.role !== "member" && !callerRoles.includes("super_admin")) {
       throw new Response(
         "Only a super admin can assign an administrative role.",
@@ -162,53 +151,49 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       );
     }
 
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-
     const email = (data.email ?? "").trim().toLowerCase();
-    const wantsLogin = data.access !== "none";
-    if (wantsLogin && !email) {
-      throw new Error("An email is required to give this member a login");
-    }
-    if (data.access === "password" && (!data.password || data.password.length < 8)) {
-      throw new Error("Password must be at least 8 characters");
+    if (data.access === "email" && !email) {
+      throw new Error("An email is required to create an activation link");
     }
 
-    const { data: existingCode, error: existingCodeError } = await supabaseAdmin
+    const { data: existingCode, error: codeError } = await context.supabase
       .from("members")
       .select("id")
       .eq("member_code", data.memberCode)
       .maybeSingle();
-    if (existingCodeError) throw new Error(existingCodeError.message);
+
+    if (codeError) throw new Error(codeError.message);
     if (existingCode) throw new Error(`Member code ${data.memberCode} is already taken`);
 
     if (email) {
-      const { data: existingEmail, error: existingEmailError } = await supabaseAdmin
+      const { data: existingEmail, error: emailError } = await context.supabase
         .from("members")
         .select("id")
         .eq("email", email)
         .maybeSingle();
-      if (existingEmailError) throw new Error(existingEmailError.message);
+
+      if (emailError) throw new Error(emailError.message);
       if (existingEmail) throw new Error("A member already uses this email address");
     }
 
-    if (!wantsLogin) {
-      const { data: member, error: insertError } = await supabaseAdmin
-        .from("members")
-        .insert({
-          member_code: data.memberCode,
-          full_name: data.fullName,
-          phone: (data.phone ?? "").trim() || null,
-          email: email || null,
-          notes: (data.notes ?? "").trim() || null,
-          status: "pending",
-        })
-        .select("id")
-        .single();
-      if (insertError || !member) {
-        throw new Error(insertError?.message ?? "Could not save the member");
-      }
+    const { data: member, error: insertError } = await context.supabase
+      .from("members")
+      .insert({
+        member_code: data.memberCode,
+        full_name: data.fullName,
+        phone: (data.phone ?? "").trim() || null,
+        email: email || null,
+        notes: (data.notes ?? "").trim() || null,
+        status: data.access === "email" ? "pending" : "pending",
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !member) {
+      throw new Error(insertError?.message ?? "Could not save the member");
+    }
+
+    if (data.access === "none") {
       return {
         ok: true,
         memberId: member.id,
@@ -216,107 +201,38 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         emailSent: false,
         existingAccount: false,
         email: null as string | null,
+        inviteToken: null as string | null,
       };
     }
 
-    const redirectTo = (data.redirectTo ?? "").trim() || undefined;
-    let userId = "";
-    let emailSent = false;
-    let existingAccount = false;
-    let createdAuthUser = false;
-
-    const { data: authUsers, error: listUsersError } =
-      await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (listUsersError) throw new Error(listUsersError.message);
-    const existingAuthUser = authUsers.users.find(
-      (user) => user.email?.toLowerCase() === email,
-    );
-
-    if (existingAuthUser) {
-      const { data: linkedMember, error: linkedMemberError } = await supabaseAdmin
-        .from("members")
-        .select("id")
-        .eq("user_id", existingAuthUser.id)
-        .maybeSingle();
-      if (linkedMemberError) throw new Error(linkedMemberError.message);
-      if (linkedMember) throw new Error("This email is already linked to a member account");
-      if (data.access === "password") {
-        throw new Error("This email already has a login. Choose email activation to link it safely.");
-      }
-      userId = existingAuthUser.id;
-      existingAccount = true;
-    } else if (data.access === "email") {
-      const { data: invited, error: iErr } =
-        await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-          data: { full_name: data.fullName },
-          ...(redirectTo ? { redirectTo } : {}),
-        });
-      if (iErr || !invited?.user) {
-        throw new Error(
-          `Member saved, but the invitation email failed: ${iErr?.message ?? "unknown error"}`,
-        );
-      }
-      userId = invited.user.id;
-      emailSent = true;
-      createdAuthUser = true;
-    } else {
-      const password = data.password;
-      if (!password || password.length < 8) {
-        throw new Error("Password must be at least 8 characters");
-      }
-      const { data: created, error: cErr } =
-        await supabaseAdmin.auth.admin.createUser({
-          email,
-          password,
-          email_confirm: true,
-          user_metadata: { full_name: data.fullName },
-        });
-      if (cErr || !created?.user) {
-        // Keep the member record; report why the login failed.
-        throw new Error(
-          `Member saved, but the login failed: ${cErr?.message ?? "unknown error"}`,
-        );
-      }
-      userId = created.user.id;
-      createdAuthUser = true;
-    }
-
-    const { data: member, error: insertError } = await supabaseAdmin
-      .from("members")
+    const token = newToken();
+    const { data: invite, error: inviteError } = await context.supabase
+      .from("member_invites")
       .insert({
-        member_code: data.memberCode,
+        member_id: member.id,
         full_name: data.fullName,
-        phone: (data.phone ?? "").trim() || null,
+        member_code: data.memberCode,
         email,
-        notes: (data.notes ?? "").trim() || null,
-        status: "active",
-        user_id: userId,
+        phone: (data.phone ?? "").trim() || null,
+        role: data.role,
+        token,
+        invited_by: context.userId,
       })
-      .select("id")
+      .select("token")
       .single();
-    if (insertError || !member) {
-      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(insertError?.message ?? "Could not save the member");
-    }
 
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert(
-        { user_id: userId, role: data.role },
-        { onConflict: "user_id,role" },
-      );
-    if (roleError) {
-      await supabaseAdmin.from("members").delete().eq("id", member.id);
-      if (createdAuthUser) await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(`Could not assign the selected role: ${roleError.message}`);
+    if (inviteError || !invite) {
+      await context.supabase.from("members").delete().eq("id", member.id);
+      throw new Error(inviteError?.message ?? "Could not create the activation link");
     }
 
     return {
       ok: true,
       memberId: member.id,
-      loginCreated: true,
-      emailSent,
-      existingAccount,
+      loginCreated: false,
+      emailSent: false,
+      existingAccount: false,
       email,
+      inviteToken: invite.token,
     };
   });
