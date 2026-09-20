@@ -405,6 +405,7 @@ function AddMemberCard() {
   const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
   const [form, setForm] = useState({
     member_code: "",
     full_name: "",
@@ -425,6 +426,7 @@ function AddMemberCard() {
       setResultMessage(null);
       setInviteLink(null);
       setErrorMessage(null);
+      setCreatedCredentials(null);
       return await addMember({
         data: {
           memberCode: form.member_code.trim(),
@@ -434,19 +436,20 @@ function AddMemberCard() {
           notes: form.notes.trim(),
           role: form.role,
           access: form.access,
+          password: form.password,
           redirectTo:
             `${SITE_URL}/auth?reset=1`,
         },
       });
     },
     onSuccess: (res) => {
-      let message = "Member added — pending account approval";
-      if (res.email) {
-        message = res.inviteToken
-          ? `Member added. Activation link created for ${res.email}.`
-          : `Member added for ${res.email}.`;
-      }
+      const message = res.loginCreated
+        ? `Member account created successfully for ${res.email}.`
+        : "Member record added without a login.";
       setResultMessage(message);
+      if (res.loginCreated && res.email) {
+        setCreatedCredentials({ email: res.email, password: form.password });
+      }
       if (res.inviteToken) setInviteLink(`${SITE_URL}/invite/${res.inviteToken}`);
       toast.success(message);
       setForm({
@@ -457,6 +460,7 @@ function AddMemberCard() {
         notes: "",
         role: "member",
         access: "email",
+        password: "",
       });
       qc.invalidateQueries({ queryKey: ["admin-members"] });
       qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
@@ -477,7 +481,7 @@ function AddMemberCard() {
             <UserPlus className="h-5 w-5 text-primary" /> Add member
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Create the member record and optionally create a one-time activation link.
+            Create the member record and assign the member an email and password for direct sign-in.
           </p>
         </div>
         <button onClick={() => setOpen((v) => !v)} className="btn-outline !py-2 !px-4 text-sm">
@@ -496,6 +500,11 @@ function AddMemberCard() {
             if (form.access !== "none" && !form.email.trim()) {
               setErrorMessage("An email is required to create a login");
               toast.error("An email is required to create a login");
+              return;
+            }
+            if (form.access === "email" && form.password.length < 8) {
+              setErrorMessage("Password must be at least 8 characters");
+              toast.error("Password must be at least 8 characters");
               return;
             }
             create.mutate();
@@ -544,6 +553,27 @@ function AddMemberCard() {
               ),
             )}
           </select>
+          {form.access === "email" && (
+            <div className="md:col-span-6 grid gap-2 md:grid-cols-[1fr_auto]">
+              <input
+                type="password"
+                minLength={8}
+                placeholder="Password for member login (minimum 8 characters)"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, password: randomPassword() })}
+                className="btn-outline text-sm"
+              >
+                Generate password
+              </button>
+            </div>
+          )}
+
           <input
             placeholder="Notes (optional)"
             value={form.notes}
@@ -558,13 +588,13 @@ function AddMemberCard() {
               onChange={(e) => setForm({ ...form, access: e.target.value as typeof form.access })}
               className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
             >
-              <option value="email">Create an activation link</option>
+              <option value="email">Create email + password login</option>
               <option value="none">No login yet (record only)</option>
             </select>
           </label>
           {form.access === "email" && (
             <p className="md:col-span-3 text-xs text-muted-foreground md:mt-8">
-              Share the generated activation link with the member. They create their own password; the admin never handles it.
+              The admin assigns the initial password. The member can change it later using password reset.
             </p>
           )}
 
@@ -582,6 +612,25 @@ function AddMemberCard() {
               {resultMessage}
             </div>
           )}
+          {createdCredentials && (
+            <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
+              <div className="font-semibold text-foreground">Member login credentials</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Give these credentials to the member securely. The password is not stored in the members table.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md bg-background border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Email</div>
+                  <div className="font-mono text-sm break-all">{createdCredentials.email}</div>
+                </div>
+                <div className="rounded-md bg-background border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Password</div>
+                  <div className="font-mono text-sm break-all">{createdCredentials.password}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {inviteLink && (
             <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
               <div className="font-semibold text-foreground">Activation link</div>
