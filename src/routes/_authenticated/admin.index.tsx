@@ -402,6 +402,7 @@ function AddMemberCard() {
   const addMember = useServerFn(addMemberWithAccess);
   const [open, setOpen] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [form, setForm] = useState({
     member_code: "",
@@ -421,6 +422,7 @@ function AddMemberCard() {
   const create = useMutation({
     mutationFn: async () => {
       setResultMessage(null);
+      setInviteLink(null);
       setErrorMessage(null);
       return await addMember({
         data: {
@@ -444,6 +446,7 @@ function AddMemberCard() {
           : `Member added for ${res.email}.`;
       }
       setResultMessage(message);
+      if (res.inviteToken) setInviteLink(`${window.location.origin}/invite/${res.inviteToken}`);
       toast.success(message);
       setForm({
         member_code: "",
@@ -576,6 +579,12 @@ function AddMemberCard() {
             <div role="status" className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm text-foreground">
               <CheckCircle2 className="mr-2 inline h-4 w-4 text-primary" />
               {resultMessage}
+            </div>
+          )}
+          {inviteLink && (
+            <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-3 text-sm">
+              <div className="font-semibold text-foreground">Activation link</div>
+              <div className="mt-1 break-all font-mono text-xs">{inviteLink}</div>
             </div>
           )}
           {errorMessage && (
