@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "remix-of-unify-growth-hub",
+  "pages_build_output_dir": "./dist",
+  "vars": {
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_osKNka2pQ66F4SPHxg3ixA_aRylSQEq",
+    "SUPABASE_URL": "https://xjluapdjrefyyctzthqc.supabase.co",
+    "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_osKNka2pQ66F4SPHxg3ixA_aRylSQEq",
+    "VITE_SUPABASE_URL": "https://xjluapdjrefyyctzthqc.supabase.co"
+  },
+  "secrets": {
+    "required": ["SUPABASE_SECRET_KEY"]
+  }
+}
