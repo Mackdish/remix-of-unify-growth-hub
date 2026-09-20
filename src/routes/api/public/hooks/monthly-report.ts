@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
 /**
  * Hourly cron entrypoint. Checks the configured monthly schedule and, when the
@@ -13,13 +15,18 @@ export const Route = createFileRoute("/api/public/hooks/monthly-report")({
     handlers: {
       POST: async ({ request }) => {
         const apikey = request.headers.get("apikey");
-        if (!apikey || apikey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+        const expectedKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (!apikey || !expectedKey || apikey !== expectedKey) {
           return json({ error: "Unauthorized" }, 401);
         }
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const supabase = createClient<Database>(
+          import.meta.env.VITE_SUPABASE_URL,
+          import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          { auth: { persistSession: false, autoRefreshToken: false } },
+        );
 
-        const { data: settings, error: settingsError } = await supabaseAdmin
+        const { data: settings, error: settingsError } = await supabase
           .from("report_schedule_settings")
           .select("*")
           .limit(1)
@@ -61,7 +68,7 @@ export const Route = createFileRoute("/api/public/hooks/monthly-report")({
         const from = monthStart.toISOString().slice(0, 10);
         const to = monthEnd.toISOString().slice(0, 10);
 
-        const { data: txns, error: txnError } = await supabaseAdmin
+        const { data: txns, error: txnError } = await supabase
           .from("transactions")
           .select("category, amount, transaction_date")
           .gte("transaction_date", from)
@@ -78,7 +85,7 @@ export const Route = createFileRoute("/api/public/hooks/monthly-report")({
         }
 
         const status = "generated (email pending sender domain)";
-        await supabaseAdmin
+        await supabase
           .from("report_schedule_settings")
           .update({ last_run_at: now.toISOString(), last_run_status: status })
           .eq("id", settings.id);
