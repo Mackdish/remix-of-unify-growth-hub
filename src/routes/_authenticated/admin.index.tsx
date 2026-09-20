@@ -447,7 +447,7 @@ function AddMemberCard() {
           : `Member added for ${res.email}.`;
       }
       setResultMessage(message);
-      if (res.inviteToken) setInviteLink(`${window.location.origin}/invite/${res.inviteToken}`);
+      if (res.inviteToken) setInviteLink(`${SITE_URL}/invite/${res.inviteToken}`);
       toast.success(message);
       setForm({
         member_code: "",
