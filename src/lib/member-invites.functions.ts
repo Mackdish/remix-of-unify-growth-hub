@@ -203,12 +203,15 @@ async function fetchPublicInvite(token: string) {
   }
 
   const response = await fetch(
-    `${url}/rest/v1/rpc/get_member_invite?p_token=${encodeURIComponent(token)}`,
+    `${url}/rest/v1/rpc/get_member_invite`,
     {
+      method: "POST",
       headers: {
         apikey: key,
         Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ p_token: token }),
     },
   );
 
