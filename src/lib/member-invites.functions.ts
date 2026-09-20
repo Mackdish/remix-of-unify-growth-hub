@@ -42,7 +42,13 @@ async function assertCanInviteMembers(context: { supabase: any; userId: string }
   return roles;
 }
 
-/** Admin: create an invite (email and/or phone) that lets the person set their own password. */
+/**
+ * Creates an application-level invitation link.
+ *
+ * Supabase Auth Admin inviteUserByEmail is intentionally not used because it
+ * requires a secret/service-role key. The invited member creates their own
+ * Auth account through supabase.auth.signUp().
+ */
 export const createMemberInvite = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateInput.parse(data))
@@ -55,6 +61,7 @@ export const createMemberInvite = createServerFn({ method: "POST" })
 
     const email = data.email.toLowerCase();
     const phone = data.phone || null;
+
     if (data.role !== "member" && !callerRoles.includes("super_admin")) {
       throw new Response(
         "Only a super admin can invite an administrative role.",
@@ -62,17 +69,14 @@ export const createMemberInvite = createServerFn({ method: "POST" })
       );
     }
 
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-
-    // Reuse the member record if given, otherwise create a pending one.
     let memberId = data.memberId || null;
+
     if (!memberId) {
       const code =
         data.memberCode ||
         `UYG-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-      const { data: created, error } = await supabaseAdmin
+
+      const { data: created, error } = await context.supabase
         .from("members")
         .insert({
           member_code: code,
@@ -83,12 +87,13 @@ export const createMemberInvite = createServerFn({ method: "POST" })
         })
         .select("id")
         .single();
+
       if (error) throw new Error(error.message);
       memberId = created.id;
     }
 
     const token = newToken();
-    const { data: invite, error: invErr } = await supabaseAdmin
+    const { data: invite, error: invErr } = await context.supabase
       .from("member_invites")
       .insert({
         member_id: memberId,
@@ -102,32 +107,18 @@ export const createMemberInvite = createServerFn({ method: "POST" })
       })
       .select("id, token, expires_at")
       .single();
-    if (invErr) throw new Error(invErr.message);
 
-    // Pre-authorise the role so it applies as soon as they sign in.
-    if (email) {
-      await supabaseAdmin
-        .from("pending_invites")
-        .upsert(
-          { email, role: data.role, invited_by: context.userId },
-          { onConflict: "email,role" },
-        );
-    }
-
-    let emailSent = false;
-    let emailWarning: string | null = null;
-    if (email) {
-      const { error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email);
-      if (error) emailWarning = error.message;
-      else emailSent = true;
+    if (invErr || !invite) {
+      throw new Error(invErr?.message ?? "Could not create the invitation");
     }
 
     return {
       ok: true,
       token: invite.token,
       expiresAt: invite.expires_at,
-      emailSent,
-      emailWarning,
+      // Email delivery is deliberately handled outside Supabase Auth Admin.
+      emailSent: false,
+      emailWarning: "Invite link created. Share the link or deliver it through your email provider.",
     };
   });
 
@@ -142,30 +133,31 @@ export const revokeMemberInvite = createServerFn({ method: "POST" })
       .from("member_invites")
       .delete()
       .eq("id", data.id);
+
     if (error) throw new Error(error.message);
     return { ok: true };
   });
 
-/** Public: read the minimal, non-sensitive details of an invite token. */
+/** Public: returns only the minimal fields needed by the invitation page. */
 export const getMemberInvite = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z.object({ token: z.string().min(20).max(120) }).parse(data),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
-    );
-    const { data: invite } = await supabaseAdmin
-      .from("member_invites")
-      .select("full_name, email, expires_at, accepted_at")
-      .eq("token", data.token)
-      .maybeSingle();
+    const { data: rows, error } = await fetchPublicInvite(data.token);
+    const invite = rows?.[0];
 
-    if (!invite) return { valid: false as const, reason: "not_found" as const };
-    if (invite.accepted_at)
+    if (error || !invite) {
+      return { valid: false as const, reason: "not_found" as const };
+    }
+
+    if (invite.accepted_at) {
       return { valid: false as const, reason: "used" as const };
-    if (new Date(invite.expires_at) < new Date())
+    }
+
+    if (new Date(invite.expires_at) < new Date()) {
       return { valid: false as const, reason: "expired" as const };
+    }
 
     return {
       valid: true as const,
@@ -174,103 +166,63 @@ export const getMemberInvite = createServerFn({ method: "POST" })
     };
   });
 
-/** Public: the invited person sets their own password and their account is created. */
+/**
+ * After sign-up/sign-in, the authenticated user claims the invitation.
+ * The database function verifies that the invite email matches the JWT email
+ * and performs the member/user-role linking without elevated API keys.
+ */
 export const acceptMemberInvite = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z
-      .object({
-        token: z.string().min(20).max(120),
-        email: z.string().trim().email().max(255),
-        password: z.string().min(8).max(72),
-      })
-      .parse(data),
+    z.object({ token: z.string().min(20).max(120) }).parse(data),
   )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import(
-      "@/integrations/supabase/client.server"
+  .handler(async ({ data, context }) => {
+    const { data: result, error } = await context.supabase.rpc(
+      "claim_member_invite",
+      { p_token: data.token },
     );
 
-    const { data: invite } = await supabaseAdmin
-      .from("member_invites")
-      .select("id, member_id, full_name, email, role, expires_at, accepted_at")
-      .eq("token", data.token)
-      .maybeSingle();
-
-    if (!invite) throw new Error("This invite link is not valid");
-    if (invite.accepted_at) throw new Error("This invite has already been used");
-    if (new Date(invite.expires_at) < new Date())
-      throw new Error("This invite link has expired");
-    if (!invite.email) {
-      throw new Error("This invite is not bound to an email address. Ask the admin for a new invitation.");
+    if (error) throw new Error(error.message);
+    if (!result?.ok) {
+      throw new Error(result?.error ?? "Could not activate this invitation");
     }
 
-    const email = data.email.toLowerCase();
-    if (invite.email.toLowerCase() !== email) {
-      throw new Error("Use the email address this invite was sent to");
-    }
-
-    const { data: created, error: cErr } =
-      await supabaseAdmin.auth.admin.createUser({
-        email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: { full_name: invite.full_name },
-      });
-    if (cErr || !created?.user) {
-      throw new Error(cErr?.message ?? "Could not create your account");
-    }
-    const userId = created.user.id;
-
-    if (!invite.member_id) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error("This invite is not linked to a member record.");
-    }
-
-    const { data: linkedMember, error: linkError } = await supabaseAdmin
-      .from("members")
-      .update({ user_id: userId, status: "active", email })
-      .eq("id", invite.member_id)
-      .is("user_id", null)
-      .select("id")
-      .maybeSingle();
-    if (linkError || !linkedMember) {
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(linkError?.message ?? "This member account is already linked.");
-    }
-
-    const { error: roleError } = await supabaseAdmin
-      .from("user_roles")
-      .upsert(
-        { user_id: userId, role: invite.role },
-        { onConflict: "user_id,role" },
-      );
-    if (roleError) {
-      await supabaseAdmin
-        .from("members")
-        .update({ user_id: null, status: "pending" })
-        .eq("id", invite.member_id)
-        .eq("user_id", userId);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error("Could not assign the invited role: " + roleError.message);
-    }
-
-    const { data: claimedInvite, error: acceptError } = await supabaseAdmin
-      .from("member_invites")
-      .update({ accepted_at: new Date().toISOString(), email })
-      .eq("id", invite.id)
-      .is("accepted_at", null)
-      .select("id")
-      .maybeSingle();
-    if (acceptError || !claimedInvite) {
-      await supabaseAdmin
-        .from("members")
-        .update({ user_id: null, status: "pending" })
-        .eq("id", invite.member_id)
-        .eq("user_id", userId);
-      await supabaseAdmin.from("user_roles").delete().eq("user_id", userId).eq("role", invite.role);
-      await supabaseAdmin.auth.admin.deleteUser(userId);
-      throw new Error(acceptError?.message ?? "This invitation has already been used.");
-    }
-
-    return { ok: true, email };
+    return { ok: true };
   });
+
+async function fetchPublicInvite(token: string) {
+  const url =
+    import.meta.env.VITE_SUPABASE_URL ||
+    import.meta.env.SUPABASE_URL;
+  const key =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase public configuration is missing");
+  }
+
+  const response = await fetch(
+    `${url}/rest/v1/rpc/get_member_invite?p_token=${encodeURIComponent(token)}`,
+    {
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    return { data: null, error: new Error(`Invite lookup failed (${response.status})`) };
+  }
+
+  return {
+    data: (await response.json()) as Array<{
+      full_name: string;
+      email: string | null;
+      expires_at: string;
+      accepted_at: string | null;
+    }>,
+    error: null,
+  };
+}
