@@ -4,7 +4,6 @@ import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { getAuthenticatedLandingRoute } from "@/lib/auth-routing";
 import { acceptMemberInvite } from "@/lib/member-invites.functions";
 import { SITE_URL } from "@/lib/site-config";
@@ -122,23 +121,6 @@ function Auth() {
     }
   };
 
-  const google = async () => {
-    setBusy(true);
-    try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${SITE_URL}/auth`,
-      });
-      if (result.error) throw result.error;
-      if (result.redirected) return;
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) throw new Error("Google sign-in did not create a valid session.");
-      navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="container-page py-16 md:py-24 grid lg:grid-cols-2 gap-12 items-center">
       <div>
@@ -201,14 +183,6 @@ function Auth() {
             Forgot password? Email me a reset link
           </button>
         )}
-
-        <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="h-px flex-1 bg-border" /> OR <span className="h-px flex-1 bg-border" />
-        </div>
-
-        <button onClick={google} disabled={busy} className="btn-outline w-full disabled:opacity-60">
-          Continue with Google
-        </button>
 
         <p className="mt-6 text-xs text-muted-foreground text-center">
           New members should use the invitation link supplied by an administrator. Your password is created by you and is never visible to administrators.
