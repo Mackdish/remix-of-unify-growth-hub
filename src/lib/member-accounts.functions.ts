@@ -1,10 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const CreateInput = z.object({
   memberId: z.string().uuid(),
   email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(72),
 });
 
 const ResetInput = z.object({
@@ -36,18 +39,18 @@ function newToken() {
 }
 
 /**
- * Prepare activation for an existing member.
+ * Create a real Supabase Auth account for an existing member.
  *
- * Authentication is deliberately created by the member with supabase.auth.signUp().
- * This keeps Cloudflare deployments independent of the Supabase secret/service-role key.
+ * This requires a server-only Supabase secret/service-role key. The key is
+ * never sent to the browser and is only used inside this server function.
  */
 export const createMemberCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => CreateInput.parse(data))
   .handler(async ({ data, context }) => {
     await assertCanManageMembers(context);
-    const email = data.email.toLowerCase();
 
+    const email = data.email.toLowerCase();
     const { data: member, error: memberError } = await context.supabase
       .from("members")
       .select("id, full_name, user_id")
@@ -58,32 +61,68 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
     if (!member) throw new Error("Member not found");
     if (member.user_id) throw new Error("This member already has a login");
 
-    const token = newToken();
-    const { data: invite, error: inviteError } = await context.supabase
-      .from("member_invites")
-      .insert({
-        member_id: member.id,
-        full_name: member.full_name,
-        email,
-        role: "member",
-        token,
-        invited_by: context.userId,
-      })
-      .select("token")
-      .single();
+    const secret =
+      process.env["SUPABASE_SECRET_KEY"] ||
+      process.env["SUPABASE_SERVICE_ROLE_KEY"];
 
-    if (inviteError || !invite) {
-      throw new Error(inviteError?.message ?? "Could not create the activation link");
+    if (!secret) {
+      throw new Error(
+        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
+      );
     }
 
-    const { error: updateError } = await context.supabase
+    const admin = createClient<Database>(
+      process.env["SUPABASE_URL"]!,
+      secret,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const { data: created, error: authError } =
+      await admin.auth.admin.createUser({
+        email,
+        password: data.password,
+        email_confirm: true,
+        user_metadata: { full_name: member.full_name },
+      });
+
+    if (authError || !created.user) {
+      throw new Error(authError?.message ?? "Could not create the member login");
+    }
+
+    const userId = created.user.id;
+
+    const { error: memberUpdateError } = await context.supabase
       .from("members")
-      .update({ email, status: "pending" })
+      .update({ email, user_id: userId, status: "active" })
       .eq("id", member.id);
 
-    if (updateError) throw new Error(updateError.message);
+    if (memberUpdateError) {
+      await admin.auth.admin.deleteUser(userId);
+      throw new Error(memberUpdateError.message);
+    }
 
-    return { ok: true, email, inviteToken: invite.token };
+    const { error: roleError } = await context.supabase
+      .from("user_roles")
+      .upsert(
+        { user_id: userId, role: "member" },
+        { onConflict: "user_id,role", ignoreDuplicates: true },
+      );
+
+    if (roleError) {
+      await context.supabase
+        .from("members")
+        .update({ email: null, user_id: null, status: "pending" })
+        .eq("id", member.id);
+      await admin.auth.admin.deleteUser(userId);
+      throw new Error(roleError.message);
+    }
+
+    return {
+      ok: true,
+      email,
+      userId,
+      loginCreated: true,
+    };
   });
 
 /**
