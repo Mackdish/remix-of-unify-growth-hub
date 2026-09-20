@@ -584,18 +584,6 @@ function AddMemberCard() {
               {errorMessage}
             </div>
           )}
-
-          {issued && (
-            <div className="md:col-span-6 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
-              <div className="font-semibold text-foreground">Share these sign-in details securely</div>
-              <div className="mt-1 font-mono text-xs break-all">
-                {issued.email} · {issued.password}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Shown once — ask them to change the password after first sign-in.
-              </p>
-            </div>
-          )}
         </form>
       )}
     </section>
