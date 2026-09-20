@@ -419,6 +419,7 @@ function AddMemberCard() {
       | "project_manager"
       | "super_admin",
     access: "email" as "none" | "email",
+    password: "",
   });
 
   const create = useMutation({
