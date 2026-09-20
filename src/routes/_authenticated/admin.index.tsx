@@ -435,7 +435,7 @@ function AddMemberCard() {
           role: form.role,
           access: form.access,
           redirectTo:
-            typeof window !== "undefined" ? `${window.location.origin}/auth` : "",
+            `${SITE_URL}/auth?reset=1`,
         },
       });
     },
