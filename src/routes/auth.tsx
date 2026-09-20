@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { getAuthenticatedLandingRoute } from "@/lib/auth-routing";
 import { acceptMemberInvite } from "@/lib/member-invites.functions";
+import { SITE_URL } from "@/lib/site-config";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/auth")({
 function Auth() {
   const navigate = useNavigate();
   const claimInvite = useServerFn(acceptMemberInvite);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,6 +39,13 @@ function Auth() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    if (params.get("reset") === "1" || hashParams.get("type") === "recovery") {
+      setMode("reset");
+      return;
+    }
+
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       try {
@@ -62,7 +70,7 @@ function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+          options: { emailRedirectTo: `${SITE_URL}/dashboard` },
         });
         if (error) throw error;
         toast.success("Account created. If email confirmation is required, check your inbox.");
@@ -83,7 +91,7 @@ function Auth() {
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth`,
+        redirectTo: `${SITE_URL}/auth?reset=1`,
       });
       if (error) throw error;
       toast.success("Password reset link sent — check your inbox.");
@@ -94,11 +102,31 @@ function Auth() {
     }
   };
 
+  const resetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      toast.success("Password updated successfully. Welcome back.");
+      window.history.replaceState({}, "", "/auth");
+      navigate({ to: "/dashboard", replace: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update your password");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const google = async () => {
     setBusy(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth`,
+        redirect_uri: `${SITE_URL}/auth`,
       });
       if (result.error) throw result.error;
       if (result.redirected) return;
@@ -140,11 +168,11 @@ function Auth() {
           >Create account</button>
         </div>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={mode === "reset" ? resetPassword : submit} className="space-y-4">
           <div>
             <label className="text-sm font-medium text-foreground">Email</label>
             <input
-              required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              required={mode !== "reset"} type="email" value={email} onChange={(e) => setEmail(e.target.value)}
               className="mt-1.5 w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               placeholder="you@example.com"
             />
@@ -159,7 +187,7 @@ function Auth() {
           </div>
           <button disabled={busy} type="submit" className="btn-primary w-full disabled:opacity-60">
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "signin" ? "Sign in" : "Create account"}
+            {mode === "reset" ? "Update password" : mode === "signin" ? "Sign in" : "Create account"}
           </button>
         </form>
 
