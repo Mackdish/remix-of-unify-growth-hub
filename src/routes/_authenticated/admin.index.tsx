@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SITE_URL } from "@/lib/site-config";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
-import { addMemberWithAccess } from "@/lib/member-accounts.functions";
+import { addMemberWithAccess, deleteMember } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
@@ -217,6 +217,7 @@ function AdminDashboard() {
 
       {/* Add member + Approve accounts */}
       {can("manage_members") && <AddMemberCard />}
+      {can("manage_members") && <ManageMembersCard members={members ?? []} />}
       {can("manage_members") && (
         <ApproveAccountsCard members={members ?? []} unlinked={unlinked} />
       )}
@@ -645,6 +646,106 @@ function AddMemberCard() {
             </div>
           )}
         </form>
+      )}
+    </section>
+  );
+}
+
+function ManageMembersCard({ members }: { members: MemberLite[] }) {
+  const qc = useQueryClient();
+  const removeMember = useServerFn(deleteMember);
+  const [open, setOpen] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const remove = async (member: MemberLite) => {
+    const confirmed = window.confirm(
+      `Delete ${member.full_name} (${member.member_code}) permanently? This also removes their login if one exists. Members with financial transactions cannot be deleted.`,
+    );
+    if (!confirmed) return;
+
+    setBusyId(member.id);
+    try {
+      await removeMember({ data: { memberId: member.id } });
+      toast.success(`${member.full_name} deleted successfully`);
+      qc.invalidateQueries({ queryKey: ["admin-members"] });
+      qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
+      qc.invalidateQueries({ queryKey: ["users-with-roles"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete member");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <section className="mt-4 rounded-2xl bg-card border border-border p-5 shadow-[var(--shadow-soft)]">
+      <div className="flex justify-between items-center gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground inline-flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" /> Manage members
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            View member accounts and permanently delete a member when necessary.
+          </p>
+        </div>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="btn-outline !py-2 !px-4 text-sm"
+        >
+          {open ? "Close" : `Manage (${members.length})`}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-5 overflow-x-auto rounded-lg border border-border">
+          {members.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No members found.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-secondary text-left text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-3 py-2">Member</th>
+                  <th className="px-3 py-2">Account</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {members.map((member) => (
+                  <tr key={member.id}>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-foreground">{member.full_name}</div>
+                      <div className="text-xs text-muted-foreground">{member.member_code}</div>
+                    </td>
+                    <td className="px-3 py-2 text-xs">
+                      {member.user_id ? (
+                        <span className="text-primary">Login linked</span>
+                      ) : (
+                        <span className="text-muted-foreground">No login</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs uppercase">{member.status}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        disabled={busyId === member.id}
+                        onClick={() => remove(member)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                      >
+                        {busyId === member.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <AlertTriangle className="h-3 w-3" />
+                        )}
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       )}
     </section>
   );
