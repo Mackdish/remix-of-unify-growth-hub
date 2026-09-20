@@ -126,6 +126,98 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
   });
 
 /**
+ * Permanently delete a member and their Supabase Auth account.
+ * Only a super admin can perform this destructive operation.
+ * Members with financial transactions cannot be deleted so the ledger remains intact.
+ */
+export const deleteMember = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ memberId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const roles = await getCallerRoles(context);
+    if (!roles.includes("super_admin")) {
+      throw new Response("Only a super admin can delete members", { status: 403 });
+    }
+
+    if (data.memberId === context.userId) {
+      throw new Error("You cannot delete your own member account");
+    }
+
+    const { data: member, error: memberError } = await context.supabase
+      .from("members")
+      .select("id, full_name, user_id")
+      .eq("id", data.memberId)
+      .maybeSingle();
+
+    if (memberError) throw new Error(memberError.message);
+    if (!member) throw new Error("Member not found");
+
+    const { count, error: txnError } = await context.supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("member_id", data.memberId);
+
+    if (txnError) throw new Error(txnError.message);
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        "This member has financial transactions and cannot be deleted. Remove or archive the financial records first.",
+      );
+    }
+
+    const secret =
+      process.env["SUPABASE_SECRET_KEY"] ||
+      process.env["SUPABASE_SERVICE_ROLE_KEY"];
+
+    if (!secret || !process.env["SUPABASE_URL"]) {
+      throw new Error(
+        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
+      );
+    }
+
+    const admin = createClient<Database>(
+      process.env["SUPABASE_URL"],
+      secret,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    // Remove application records first. Auth is removed last so a failed
+    // database deletion does not leave a member record without its login.
+    const { error: inviteError } = await admin
+      .from("member_invites")
+      .delete()
+      .eq("member_id", data.memberId);
+    if (inviteError) throw new Error(inviteError.message);
+
+    if (member.user_id) {
+      const { error: roleError } = await admin
+        .from("user_roles")
+        .delete()
+        .eq("user_id", member.user_id);
+      if (roleError) throw new Error(roleError.message);
+    }
+
+    const { error: deleteMemberError } = await admin
+      .from("members")
+      .delete()
+      .eq("id", data.memberId);
+    if (deleteMemberError) throw new Error(deleteMemberError.message);
+
+    if (member.user_id) {
+      const { error: authDeleteError } =
+        await admin.auth.admin.deleteUser(member.user_id);
+      if (authDeleteError) {
+        throw new Error(
+          `Member record deleted, but the login could not be removed: ${authDeleteError.message}`,
+        );
+      }
+    }
+
+    return { ok: true, memberId: data.memberId, fullName: member.full_name };
+  });
+
+/**
  * Password reset is user-controlled. Admins can request the normal Supabase
  * recovery email, but never set or read another user's password.
  */
