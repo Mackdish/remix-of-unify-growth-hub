@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { SITE_URL } from "@/lib/site-config";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
 import { addMemberWithAccess } from "@/lib/member-accounts.functions";
@@ -771,7 +772,7 @@ function InviteMembersCard({ members }: { members: MemberLite[] }) {
           memberId,
         },
       });
-      const url = `${window.location.origin}/invite/${res.token}`;
+      const url = `${SITE_URL}/invite/${res.token}`;
       setLastLink({ url, phone, emailSent: res.emailSent });
       toast.success(
         res.emailSent ? "Invitation sent by email" : "Invite link created — share it with them",
@@ -966,7 +967,7 @@ function InviteMembersCard({ members }: { members: MemberLite[] }) {
                                 <button
                                   onClick={() => {
                                     navigator.clipboard.writeText(
-                                      `${window.location.origin}/invite/${i.token}`,
+                                      `${SITE_URL}/invite/${i.token}`,
                                     );
                                     toast.success("Link copied");
                                   }}
