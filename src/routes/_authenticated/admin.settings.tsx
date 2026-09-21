@@ -1,10 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequirePermission } from "@/hooks/use-permissions";
-import { updateSiteSettings } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 import {
   ShieldCheck,
@@ -95,7 +93,6 @@ function ControlPanel() {
 /* ---------------- Site settings ---------------- */
 function SettingsCard({ isSuper }: { isSuper: boolean }) {
   const qc = useQueryClient();
-  const saveSiteSettings = useServerFn(updateSiteSettings);
   const [form, setForm] = useState<null | {
     id: string;
     group_name: string;
@@ -138,8 +135,23 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
   const save = useMutation({
     mutationFn: async () => {
       if (!form) return;
-      await saveSiteSettings({
-        data: {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
+      if (!session?.access_token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const response = await fetch("/api/admin/site-settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
           id: form.id,
           group_name: form.group_name,
           tagline: form.tagline,
@@ -150,8 +162,16 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
           vision: form.vision,
           mission: form.mission,
           marquee_enabled: form.marquee_enabled,
-        },
+        }),
       });
+
+      const result = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error || `Settings update failed (${response.status})`);
+      }
     },
     onSuccess: () => {
       toast.success("Settings saved");
