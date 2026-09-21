@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SITE_URL } from "@/lib/site-config";
 import { useRequirePermission } from "@/hooks/use-permissions";
 import { ROLE_LABEL, PERMISSION_LABEL, PERMISSION_MATRIX, type Permission } from "@/lib/permissions";
-import { addMemberWithAccess, deleteMember } from "@/lib/member-accounts.functions";
+import { addMemberWithAccess, deleteMember, linkMemberAccount } from "@/lib/member-accounts.functions";
 import { createMemberInvite, revokeMemberInvite } from "@/lib/member-invites.functions";
 import { toast } from "sonner";
 import {
@@ -753,6 +753,7 @@ function ManageMembersCard({ members }: { members: MemberLite[] }) {
 
 function ApproveAccountsCard({ members, unlinked }: { members: MemberLite[]; unlinked: MemberLite[] }) {
   const qc = useQueryClient();
+  const linkAccount = useServerFn(linkMemberAccount);
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -775,20 +776,21 @@ function ApproveAccountsCard({ members, unlinked }: { members: MemberLite[]; unl
     const userId = selections[memberId];
     if (!userId) return toast.error("Pick a signed-up user to approve");
     setBusyId(memberId);
-    const { error } = await supabase
-      .from("members")
-      .update({ user_id: userId, status: "active" })
-      .eq("id", memberId);
-    setBusyId(null);
-    if (error) return toast.error(error.message);
-    toast.success("Account approved & linked");
-    setSelections((s) => {
-      const n = { ...s };
-      delete n[memberId];
-      return n;
-    });
-    qc.invalidateQueries({ queryKey: ["admin-members"] });
-    qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
+    try {
+      await linkAccount({ data: { memberId, userId } });
+      toast.success("Account approved & linked");
+      setSelections((s) => {
+        const n = { ...s };
+        delete n[memberId];
+        return n;
+      });
+      qc.invalidateQueries({ queryKey: ["admin-members"] });
+      qc.invalidateQueries({ queryKey: ["admin-approve-users"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not link account");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
