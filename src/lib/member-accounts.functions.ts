@@ -400,3 +400,86 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       email,
     };
   });
+
+
+const LinkMemberInput = z.object({
+  memberId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+/**
+ * Link an existing Supabase Auth user to an existing member record.
+ * This is deliberately server-side so RLS cannot block the operation and
+ * an administrator cannot link a user that is already attached elsewhere.
+ */
+export const linkMemberAccount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => LinkMemberInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const callerRoles = await assertCanManageMembers(context);
+
+    const secret =
+      process.env["SUPABASE_SECRET_KEY"] ||
+      process.env["SUPABASE_SERVICE_ROLE_KEY"];
+
+    const url = process.env["SUPABASE_URL"];
+    if (!secret || !url) {
+      throw new Error(
+        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
+      );
+    }
+
+    const admin = createClient<Database>(
+      url,
+      secret,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+
+    const [{ data: member, error: memberError }, { data: authUser, error: authError }] =
+      await Promise.all([
+        admin
+          .from("members")
+          .select("id, full_name, user_id, status")
+          .eq("id", data.memberId)
+          .maybeSingle(),
+        admin.auth.admin.getUserById(data.userId),
+      ]);
+
+    if (memberError) throw new Error(memberError.message);
+    if (authError || !authUser.user) {
+      throw new Error(authError?.message ?? "Selected user account was not found");
+    }
+    if (!member) throw new Error("Member not found");
+    if (member.user_id) throw new Error("This member is already linked to an account");
+
+    const { data: existingLink, error: existingError } = await admin
+      .from("members")
+      .select("id, full_name, member_code")
+      .eq("user_id", data.userId)
+      .maybeSingle();
+
+    if (existingError) throw new Error(existingError.message);
+    if (existingLink) {
+      throw new Error(
+        `That login is already linked to member ${existingLink.member_code} — ${existingLink.full_name}`,
+      );
+    }
+
+    const { error: updateError } = await admin
+      .from("members")
+      .update({
+        user_id: data.userId,
+        status: "active",
+        email: member.email ?? authUser.user.email ?? null,
+      })
+      .eq("id", data.memberId);
+
+    if (updateError) throw new Error(updateError.message);
+
+    return {
+      ok: true,
+      memberId: data.memberId,
+      userId: data.userId,
+      roles: callerRoles,
+    };
+  });
