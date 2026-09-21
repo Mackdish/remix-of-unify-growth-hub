@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequirePermission } from "@/hooks/use-permissions";
+import { updateSiteSettings } from "@/lib/site-settings.functions";
 import { toast } from "sonner";
 import {
   ShieldCheck,
