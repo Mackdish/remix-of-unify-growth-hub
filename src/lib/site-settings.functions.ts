@@ -19,7 +19,18 @@ const UpdateSiteSettingsInput = z.object({
 
 export const updateSiteSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => UpdateSiteSettingsInput.parse(data))
+  .inputValidator((input: unknown) => {
+    const candidate =
+      input &&
+      typeof input === "object" &&
+      "data" in input &&
+      (input as { data?: unknown }).data &&
+      typeof (input as { data?: unknown }).data === "object"
+        ? (input as { data: unknown }).data
+        : input;
+
+    return UpdateSiteSettingsInput.parse(candidate);
+  })
   .handler(async ({ data, context }) => {
     const { data: roles, error: rolesError } = await context.supabase
       .from("user_roles")
