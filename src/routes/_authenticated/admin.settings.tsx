@@ -93,6 +93,7 @@ function ControlPanel() {
 /* ---------------- Site settings ---------------- */
 function SettingsCard({ isSuper }: { isSuper: boolean }) {
   const qc = useQueryClient();
+  const saveSiteSettings = useServerFn(updateSiteSettings);
   const [form, setForm] = useState<null | {
     id: string;
     group_name: string;
@@ -135,21 +136,20 @@ function SettingsCard({ isSuper }: { isSuper: boolean }) {
   const save = useMutation({
     mutationFn: async () => {
       if (!form) return;
-      const { error } = await supabase
-        .from("site_settings")
-        .update({
-          group_name: form.group_name.trim(),
-          tagline: form.tagline.trim(),
-          phone: form.phone.trim(),
-          email: form.email.trim(),
-          location: form.location.trim(),
-          about_intro: form.about_intro.trim(),
-          vision: form.vision.trim(),
-          mission: form.mission.trim(),
+      await saveSiteSettings({
+        data: {
+          id: form.id,
+          group_name: form.group_name,
+          tagline: form.tagline,
+          phone: form.phone,
+          email: form.email,
+          location: form.location,
+          about_intro: form.about_intro,
+          vision: form.vision,
+          mission: form.mission,
           marquee_enabled: form.marquee_enabled,
-        })
-        .eq("id", form.id);
-      if (error) throw error;
+        },
+      });
     },
     onSuccess: () => {
       toast.success("Settings saved");
