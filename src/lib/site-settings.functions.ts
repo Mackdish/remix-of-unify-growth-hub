@@ -9,7 +9,7 @@ const UpdateSiteSettingsInput = z.object({
   group_name: z.string().trim().min(1).max(160),
   tagline: z.string().trim().max(300),
   phone: z.string().trim().max(60),
-  email: z.string().trim().email().max(255),
+  email: z.string().trim().max(255),
   location: z.string().trim().max(255),
   about_intro: z.string().trim().max(5000),
   vision: z.string().trim().max(5000),
