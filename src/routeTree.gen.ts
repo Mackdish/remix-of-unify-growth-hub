@@ -22,6 +22,7 @@ import { Route as AuthenticatedLoansRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
+import { Route as ApiAdminSiteSettingsRouteImport } from './routes/api/admin/site-settings'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin.settings'
 import { Route as AuthenticatedAdminScheduleRouteImport } from './routes/_authenticated/admin.schedule'
 import { Route as AuthenticatedAdminRolesRouteImport } from './routes/_authenticated/admin.roles'
@@ -95,6 +96,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiAdminSiteSettingsRoute = ApiAdminSiteSettingsRouteImport.update({
+  id: '/api/admin/site-settings',
+  path: '/api/admin/site-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminSettingsRoute =
   AuthenticatedAdminSettingsRouteImport.update({
     id: '/admin/settings',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/api/admin/site-settings': typeof ApiAdminSiteSettingsRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/api/admin/site-settings': typeof ApiAdminSiteSettingsRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/roles': typeof AuthenticatedAdminRolesRoute
   '/_authenticated/admin/schedule': typeof AuthenticatedAdminScheduleRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRoute
+  '/api/admin/site-settings': typeof ApiAdminSiteSettingsRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/api/public/hooks/monthly-report': typeof ApiPublicHooksMonthlyReportRoute
 }
@@ -231,6 +240,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/schedule'
     | '/admin/settings'
+    | '/api/admin/site-settings'
     | '/admin/'
     | '/api/public/hooks/monthly-report'
   fileRoutesByTo: FileRoutesByTo
@@ -253,6 +263,7 @@ export interface FileRouteTypes {
     | '/admin/roles'
     | '/admin/schedule'
     | '/admin/settings'
+    | '/api/admin/site-settings'
     | '/admin'
     | '/api/public/hooks/monthly-report'
   id:
@@ -276,6 +287,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/roles'
     | '/_authenticated/admin/schedule'
     | '/_authenticated/admin/settings'
+    | '/api/admin/site-settings'
     | '/_authenticated/admin/'
     | '/api/public/hooks/monthly-report'
   fileRoutesById: FileRoutesById
@@ -290,6 +302,7 @@ export interface RootRouteChildren {
   ProjectsRoute: typeof ProjectsRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  ApiAdminSiteSettingsRoute: typeof ApiAdminSiteSettingsRoute
   ApiPublicHooksMonthlyReportRoute: typeof ApiPublicHooksMonthlyReportRoute
 }
 
@@ -385,6 +398,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/admin/site-settings': {
+      id: '/api/admin/site-settings'
+      path: '/api/admin/site-settings'
+      fullPath: '/api/admin/site-settings'
+      preLoaderRoute: typeof ApiAdminSiteSettingsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/settings': {
       id: '/_authenticated/admin/settings'
@@ -486,6 +506,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProjectsRoute: ProjectsRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   InviteTokenRoute: InviteTokenRoute,
+  ApiAdminSiteSettingsRoute: ApiAdminSiteSettingsRoute,
   ApiPublicHooksMonthlyReportRoute: ApiPublicHooksMonthlyReportRoute,
 }
 export const routeTree = rootRouteImport
