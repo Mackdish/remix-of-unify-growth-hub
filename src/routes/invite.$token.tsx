@@ -63,12 +63,13 @@ function AcceptInvite() {
     e.preventDefault();
     if (password !== confirm) return toast.error("Passwords do not match");
     setBusy(true);
+    const fullName = state.status === "ready" ? state.fullName : "";
     try {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
-          data: { full_name: state.fullName },
+          data: { full_name: fullName },
           emailRedirectTo: `${SITE_URL}/auth?invite=${encodeURIComponent(token)}`,
         },
       });
