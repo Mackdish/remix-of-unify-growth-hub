@@ -452,7 +452,9 @@ function AddMemberCard() {
       if (res.loginCreated && res.email) {
         setCreatedCredentials({ email: res.email, password: form.password });
       }
-      if (res.inviteToken) setInviteLink(`${SITE_URL}/invite/${res.inviteToken}`);
+      if ("inviteToken" in res && res.inviteToken) {
+        setInviteLink(`${SITE_URL}/invite/${res.inviteToken}`);
+      }
       toast.success(message);
       setForm({
         member_code: "",

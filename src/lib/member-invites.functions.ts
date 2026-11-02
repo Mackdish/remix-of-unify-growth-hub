@@ -182,6 +182,7 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
       { p_token: data.token },
     );
 
+    if (error) throw new Error(error.message);
     const payload =
       typeof result === "object" && result !== null && !Array.isArray(result)
         ? result
