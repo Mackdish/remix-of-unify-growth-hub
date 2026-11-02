@@ -182,9 +182,16 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
       { p_token: data.token },
     );
 
-    if (error) throw new Error(error.message);
-    if (!result?.ok) {
-      throw new Error(result?.error ?? "Could not activate this invitation");
+    const payload =
+      typeof result === "object" && result !== null && !Array.isArray(result)
+        ? result
+        : null;
+    if (!payload?.ok) {
+      throw new Error(
+        typeof payload?.error === "string"
+          ? payload.error
+          : "Could not activate this invitation",
+      );
     }
 
     return { ok: true };
