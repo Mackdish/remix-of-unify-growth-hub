@@ -439,7 +439,7 @@ export const linkMemberAccount = createServerFn({ method: "POST" })
       await Promise.all([
         admin
           .from("members")
-          .select("id, full_name, user_id, status")
+          .select("id, full_name, user_id, status, email")
           .eq("id", data.memberId)
           .maybeSingle(),
         admin.auth.admin.getUserById(data.userId),
