@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
+import { adminRpc } from "@/lib/admin-rpc";
+import { createPublicSupabaseClient } from "@/lib/supabase-public";
 
 const UpdateSiteSettingsSchema = z.object({
   id: z.string().uuid(),
@@ -16,6 +16,11 @@ const UpdateSiteSettingsSchema = z.object({
   marquee_enabled: z.boolean(),
 });
 
+/**
+ * Acts as the signed-in user (their bearer token + the publishable key). The
+ * database function admin_update_site_settings verifies the caller is a super
+ * admin, so no service/secret key is needed.
+ */
 export const Route = createFileRoute("/api/admin/site-settings")({
   server: {
     handlers: {
@@ -27,42 +32,23 @@ export const Route = createFileRoute("/api/admin/site-settings")({
           return json({ error: "Authentication required" }, 401);
         }
 
-        const url =
-          process.env["SUPABASE_URL"] ||
-          import.meta.env.VITE_SUPABASE_URL;
-        const secret =
-          process.env["SUPABASE_SECRET_KEY"] ||
-          process.env["SUPABASE_SERVICE_ROLE_KEY"];
-
-        if (!url || !secret) {
+        let supabase: ReturnType<typeof createPublicSupabaseClient>;
+        try {
+          supabase = createPublicSupabaseClient(token);
+        } catch (err) {
           return json(
-            { error: "Server Supabase admin key is not configured" },
+            { error: err instanceof Error ? err.message : "Supabase configuration is missing" },
             500,
           );
         }
 
-        const admin = createClient<Database>(url, secret, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        });
-
         const {
           data: { user },
           error: userError,
-        } = await admin.auth.getUser(token);
+        } = await supabase.auth.getUser(token);
 
         if (userError || !user) {
           return json({ error: "Invalid or expired session" }, 401);
-        }
-
-        const { data: roles, error: rolesError } = await admin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
-
-        if (rolesError) return json({ error: rolesError.message }, 500);
-
-        if (!(roles ?? []).some((row) => row.role === "super_admin")) {
-          return json({ error: "Only a super admin can change site settings" }, 403);
         }
 
         let payload: unknown;
@@ -80,16 +66,23 @@ export const Route = createFileRoute("/api/admin/site-settings")({
           );
         }
 
-        const { id, ...settings } = parsed.data;
-        const { error } = await admin
-          .from("site_settings")
-          .update({
-            ...settings,
-            updated_by: user.id,
-          })
-          .eq("id", id);
+        const s = parsed.data;
+        const { error } = await adminRpc(supabase, "admin_update_site_settings", {
+          p_id: s.id,
+          p_group_name: s.group_name,
+          p_tagline: s.tagline,
+          p_phone: s.phone,
+          p_email: s.email,
+          p_location: s.location,
+          p_about_intro: s.about_intro,
+          p_vision: s.vision,
+          p_mission: s.mission,
+          p_marquee_enabled: s.marquee_enabled,
+        });
 
-        if (error) return json({ error: error.message }, 500);
+        if (error) {
+          return json({ error: error.message }, error.code === "42501" ? 403 : 500);
+        }
 
         return json({ ok: true });
       },

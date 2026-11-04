@@ -1,8 +1,19 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { callAdminRpc } from "@/lib/admin-rpc";
+import { createPublicSupabaseClient } from "@/lib/supabase-public";
+
+/**
+ * None of these functions use a Supabase service/secret key.
+ *
+ * - They run as the signed-in user (requireSupabaseAuth gives a client that
+ *   carries the caller's JWT).
+ * - Anything privileged is done by SECURITY DEFINER database functions that
+ *   re-check the caller's role from auth.uid() (see
+ *   supabase/migrations/20261104100000_admin_rpcs_without_service_key.sql).
+ * - New logins are created with the normal public sign-up call.
+ */
 
 const CreateInput = z.object({
   memberId: z.string().uuid(),
@@ -32,17 +43,41 @@ async function assertCanManageMembers(context: { supabase: any; userId: string }
   return roles;
 }
 
-function newToken() {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+async function errorMessage(err: unknown): Promise<string> {
+  if (err instanceof Response) return (await err.text()) || `Request failed (${err.status})`;
+  if (err instanceof Error) return err.message;
+  return "Unknown error";
+}
+
+/**
+ * Create the Supabase Auth login with the public sign-up call (publishable key
+ * only). Returns the new auth user id. Linking it to the member, and confirming
+ * the email, is done afterwards by admin_link_member_account.
+ */
+async function signUpMemberLogin(email: string, password: string, fullName: string) {
+  const anon = createPublicSupabaseClient();
+  const { data, error } = await anon.auth.signUp({
+    email,
+    password,
+    options: { data: { full_name: fullName } },
+  });
+
+  if (error) throw new Error(error.message);
+  const user = data.user;
+  if (!user) throw new Error("Could not create the member login");
+
+  // Supabase hides existing accounts by returning a user with no identities.
+  if (!user.identities || user.identities.length === 0) {
+    throw new Error(
+      "An account with this email already exists. Use \"Approve accounts\" to link it to the member, or send an invite instead.",
+    );
+  }
+
+  return user.id;
 }
 
 /**
  * Create a real Supabase Auth account for an existing member.
- *
- * This requires a server-only Supabase secret/service-role key. The key is
- * never sent to the browser and is only used inside this server function.
  */
 export const createMemberCredentials = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -61,60 +96,20 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
     if (!member) throw new Error("Member not found");
     if (member.user_id) throw new Error("This member already has a login");
 
-    const secret =
-      process.env["SUPABASE_SECRET_KEY"] ||
-      process.env["SUPABASE_SERVICE_ROLE_KEY"];
+    const userId = await signUpMemberLogin(email, data.password, member.full_name);
 
-    if (!secret) {
-      throw new Error(
-        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
-      );
-    }
-
-    const admin = createClient<Database>(
-      process.env["SUPABASE_URL"]!,
-      secret,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    );
-
-    const { data: created, error: authError } =
-      await admin.auth.admin.createUser({
-        email,
-        password: data.password,
-        email_confirm: true,
-        user_metadata: { full_name: member.full_name },
+    try {
+      await callAdminRpc(context.supabase, "admin_link_member_account", {
+        p_member_id: member.id,
+        p_user_id: userId,
+        p_role: "member",
+        p_confirm_email: true,
+        p_overwrite_email: true,
       });
-
-    if (authError || !created.user) {
-      throw new Error(authError?.message ?? "Could not create the member login");
-    }
-
-    const userId = created.user.id;
-
-    const { error: memberUpdateError } = await context.supabase
-      .from("members")
-      .update({ email, user_id: userId, status: "active" })
-      .eq("id", member.id);
-
-    if (memberUpdateError) {
-      await admin.auth.admin.deleteUser(userId);
-      throw new Error(memberUpdateError.message);
-    }
-
-    const { error: roleError } = await context.supabase
-      .from("user_roles")
-      .upsert(
-        { user_id: userId, role: "member" },
-        { onConflict: "user_id,role", ignoreDuplicates: true },
+    } catch (err) {
+      throw new Error(
+        `The login for ${email} was created but could not be linked to the member: ${await errorMessage(err)}. Use "Approve accounts" to link it.`,
       );
-
-    if (roleError) {
-      await context.supabase
-        .from("members")
-        .update({ email: null, user_id: null, status: "pending" })
-        .eq("id", member.id);
-      await admin.auth.admin.deleteUser(userId);
-      throw new Error(roleError.message);
     }
 
     return {
@@ -126,9 +121,9 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
   });
 
 /**
- * Permanently delete a member and their Supabase Auth account.
- * Only a super admin can perform this destructive operation.
- * Members with financial transactions cannot be deleted so the ledger remains intact.
+ * Permanently delete a member and their login. Only a super admin can do this
+ * (enforced inside the database function). Members with financial transactions
+ * cannot be deleted so the ledger remains intact.
  */
 export const deleteMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -136,85 +131,13 @@ export const deleteMember = createServerFn({ method: "POST" })
     z.object({ memberId: z.string().uuid() }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const roles = await getCallerRoles(context);
-    if (!roles.includes("super_admin")) {
-      throw new Response("Only a super admin can delete members", { status: 403 });
-    }
-
-    if (data.memberId === context.userId) {
-      throw new Error("You cannot delete your own member account");
-    }
-
-    const { data: member, error: memberError } = await context.supabase
-      .from("members")
-      .select("id, full_name, user_id")
-      .eq("id", data.memberId)
-      .maybeSingle();
-
-    if (memberError) throw new Error(memberError.message);
-    if (!member) throw new Error("Member not found");
-
-    const { count, error: txnError } = await context.supabase
-      .from("transactions")
-      .select("id", { count: "exact", head: true })
-      .eq("member_id", data.memberId);
-
-    if (txnError) throw new Error(txnError.message);
-    if ((count ?? 0) > 0) {
-      throw new Error(
-        "This member has financial transactions and cannot be deleted. Remove or archive the financial records first.",
-      );
-    }
-
-    const secret =
-      process.env["SUPABASE_SECRET_KEY"] ||
-      process.env["SUPABASE_SERVICE_ROLE_KEY"];
-
-    if (!secret || !process.env["SUPABASE_URL"]) {
-      throw new Error(
-        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
-      );
-    }
-
-    const admin = createClient<Database>(
-      process.env["SUPABASE_URL"],
-      secret,
-      { auth: { persistSession: false, autoRefreshToken: false } },
+    const result = await callAdminRpc<{ full_name?: string }>(
+      context.supabase,
+      "admin_delete_member",
+      { p_member_id: data.memberId },
     );
 
-    // Remove application records first. Auth is removed last so a failed
-    // database deletion does not leave a member record without its login.
-    const { error: inviteError } = await admin
-      .from("member_invites")
-      .delete()
-      .eq("member_id", data.memberId);
-    if (inviteError) throw new Error(inviteError.message);
-
-    if (member.user_id) {
-      const { error: roleError } = await admin
-        .from("user_roles")
-        .delete()
-        .eq("user_id", member.user_id);
-      if (roleError) throw new Error(roleError.message);
-    }
-
-    const { error: deleteMemberError } = await admin
-      .from("members")
-      .delete()
-      .eq("id", data.memberId);
-    if (deleteMemberError) throw new Error(deleteMemberError.message);
-
-    if (member.user_id) {
-      const { error: authDeleteError } =
-        await admin.auth.admin.deleteUser(member.user_id);
-      if (authDeleteError) {
-        throw new Error(
-          `Member record deleted, but the login could not be removed: ${authDeleteError.message}`,
-        );
-      }
-    }
-
-    return { ok: true, memberId: data.memberId, fullName: member.full_name };
+    return { ok: true, memberId: data.memberId, fullName: result.full_name ?? "" };
   });
 
 /**
@@ -338,57 +261,28 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
       };
     }
 
-    const secret =
-      process.env["SUPABASE_SECRET_KEY"] ||
-      process.env["SUPABASE_SERVICE_ROLE_KEY"];
-
-    if (!secret || !process.env["SUPABASE_URL"]) {
+    let userId: string;
+    try {
+      userId = await signUpMemberLogin(email, data.password!, data.fullName);
+    } catch (err) {
+      // Nothing was created in Auth, so remove the member record we just added.
       await context.supabase.from("members").delete().eq("id", member.id);
-      throw new Error(
-        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
-      );
+      throw err;
     }
 
-    const admin = createClient<Database>(
-      process.env["SUPABASE_URL"],
-      secret,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    );
-
-    const { data: created, error: authError } =
-      await admin.auth.admin.createUser({
-        email,
-        password: data.password!,
-        email_confirm: true,
-        user_metadata: { full_name: data.fullName },
+    try {
+      await callAdminRpc(context.supabase, "admin_link_member_account", {
+        p_member_id: member.id,
+        p_user_id: userId,
+        p_role: data.role,
+        p_confirm_email: true,
       });
-
-    if (authError || !created.user) {
-      await context.supabase.from("members").delete().eq("id", member.id);
-      throw new Error(authError?.message ?? "Could not create the member login");
-    }
-
-    const userId = created.user.id;
-
-    const { error: memberUpdateError } = await context.supabase
-      .from("members")
-      .update({ user_id: userId, status: "active" })
-      .eq("id", member.id);
-
-    if (memberUpdateError) {
-      await admin.auth.admin.deleteUser(userId);
-      await context.supabase.from("members").delete().eq("id", member.id);
-      throw new Error(memberUpdateError.message);
-    }
-
-    const { error: roleError } = await context.supabase
-      .from("user_roles")
-      .insert({ user_id: userId, role: data.role });
-
-    if (roleError) {
-      await admin.auth.admin.deleteUser(userId);
-      await context.supabase.from("members").delete().eq("id", member.id);
-      throw new Error(roleError.message);
+    } catch (err) {
+      // The login exists in Auth now, so keep the member record and let an admin
+      // finish the link from "Approve accounts" instead of orphaning the login.
+      throw new Error(
+        `Member saved and the login for ${email} was created, but linking failed: ${await errorMessage(err)}. Use "Approve accounts" to link it.`,
+      );
     }
 
     return {
@@ -401,7 +295,6 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
     };
   });
 
-
 const LinkMemberInput = z.object({
   memberId: z.string().uuid(),
   userId: z.string().uuid(),
@@ -409,8 +302,8 @@ const LinkMemberInput = z.object({
 
 /**
  * Link an existing Supabase Auth user to an existing member record.
- * This is deliberately server-side so RLS cannot block the operation and
- * an administrator cannot link a user that is already attached elsewhere.
+ * The database function checks that the caller is an admin, that the member is
+ * not already linked, and that the login is not attached elsewhere.
  */
 export const linkMemberAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -418,63 +311,10 @@ export const linkMemberAccount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const callerRoles = await assertCanManageMembers(context);
 
-    const secret =
-      process.env["SUPABASE_SECRET_KEY"] ||
-      process.env["SUPABASE_SERVICE_ROLE_KEY"];
-
-    const url = process.env["SUPABASE_URL"];
-    if (!secret || !url) {
-      throw new Error(
-        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
-      );
-    }
-
-    const admin = createClient<Database>(
-      url,
-      secret,
-      { auth: { persistSession: false, autoRefreshToken: false } },
-    );
-
-    const [{ data: member, error: memberError }, { data: authUser, error: authError }] =
-      await Promise.all([
-        admin
-          .from("members")
-          .select("id, full_name, user_id, status, email")
-          .eq("id", data.memberId)
-          .maybeSingle(),
-        admin.auth.admin.getUserById(data.userId),
-      ]);
-
-    if (memberError) throw new Error(memberError.message);
-    if (authError || !authUser.user) {
-      throw new Error(authError?.message ?? "Selected user account was not found");
-    }
-    if (!member) throw new Error("Member not found");
-    if (member.user_id) throw new Error("This member is already linked to an account");
-
-    const { data: existingLink, error: existingError } = await admin
-      .from("members")
-      .select("id, full_name, member_code")
-      .eq("user_id", data.userId)
-      .maybeSingle();
-
-    if (existingError) throw new Error(existingError.message);
-    if (existingLink) {
-      throw new Error(
-        `That login is already linked to member ${existingLink.member_code} — ${existingLink.full_name}`,
-      );
-    }
-
-    const { error: updateError } = await admin
-      .from("members")
-      .update({
-        user_id: data.userId,
-        status: "active",
-        email: member.email ?? authUser.user.email ?? null,
-      })
-      .eq("id", data.memberId);
-
-    if (updateError) throw new Error(updateError.message);
+    await callAdminRpc(context.supabase, "admin_link_member_account", {
+      p_member_id: data.memberId,
+      p_user_id: data.userId,
+    });
 
     return {
       ok: true,

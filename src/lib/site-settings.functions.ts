@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
-import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { callAdminRpc } from "@/lib/admin-rpc";
 
 const UpdateSiteSettingsInput = z.object({
   id: z.string().uuid(),
@@ -17,6 +16,10 @@ const UpdateSiteSettingsInput = z.object({
   marquee_enabled: z.boolean(),
 });
 
+/**
+ * Runs as the signed-in user. The database function re-checks that the caller
+ * is a super admin, so no service/secret key is needed.
+ */
 export const updateSiteSettings = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => {
@@ -32,50 +35,18 @@ export const updateSiteSettings = createServerFn({ method: "POST" })
     return UpdateSiteSettingsInput.parse(candidate);
   })
   .handler(async ({ data, context }) => {
-    const { data: roles, error: rolesError } = await context.supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", context.userId);
-
-    if (rolesError) throw new Error(rolesError.message);
-    if (!(roles ?? []).some((r: { role: string }) => r.role === "super_admin")) {
-      throw new Response("Only a super admin can change site contact information", {
-        status: 403,
-      });
-    }
-
-    const secret =
-      process.env["SUPABASE_SECRET_KEY"] ||
-      process.env["SUPABASE_SERVICE_ROLE_KEY"];
-    const url = process.env["SUPABASE_URL"];
-
-    if (!secret || !url) {
-      throw new Error(
-        "Server Supabase admin key is not configured. Set SUPABASE_SECRET_KEY in Cloudflare.",
-      );
-    }
-
-    const admin = createClient<Database>(url, secret, {
-      auth: { persistSession: false, autoRefreshToken: false },
+    await callAdminRpc(context.supabase, "admin_update_site_settings", {
+      p_id: data.id,
+      p_group_name: data.group_name,
+      p_tagline: data.tagline,
+      p_phone: data.phone,
+      p_email: data.email,
+      p_location: data.location,
+      p_about_intro: data.about_intro,
+      p_vision: data.vision,
+      p_mission: data.mission,
+      p_marquee_enabled: data.marquee_enabled,
     });
-
-    const { error } = await admin
-      .from("site_settings")
-      .update({
-        group_name: data.group_name,
-        tagline: data.tagline,
-        phone: data.phone,
-        email: data.email,
-        location: data.location,
-        about_intro: data.about_intro,
-        vision: data.vision,
-        mission: data.mission,
-        marquee_enabled: data.marquee_enabled,
-        updated_by: context.userId,
-      })
-      .eq("id", data.id);
-
-    if (error) throw new Error(error.message);
 
     return { ok: true };
   });
