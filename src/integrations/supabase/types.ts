@@ -533,6 +533,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_delete_member: { Args: { p_member_id: string }; Returns: Json }
+      admin_link_member_account: {
+        Args: {
+          p_confirm_email?: boolean
+          p_member_id: string
+          p_overwrite_email?: boolean
+          p_role?: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      admin_update_site_settings: {
+        Args: {
+          p_about_intro: string
+          p_email: string
+          p_group_name: string
+          p_id: string
+          p_location: string
+          p_marquee_enabled: boolean
+          p_mission: string
+          p_phone: string
+          p_tagline: string
+          p_vision: string
+        }
+        Returns: Json
+      }
       claim_member_invite: { Args: { p_token: string }; Returns: Json }
       get_member_invite: {
         Args: { p_token: string }
