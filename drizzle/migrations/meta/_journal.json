@@ -15,6 +15,13 @@
       "when": 1793905102312,
       "tag": "0001_admin_rpcs_without_service_key",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793905202218,
+      "tag": "0002_member_account_link_rpc_compatibility",
+      "breakpoints": true
     }
   ]
 }
