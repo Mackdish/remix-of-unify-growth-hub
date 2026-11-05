@@ -105,6 +105,7 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
         p_role: "member",
         p_confirm_email: true,
         p_overwrite_email: true,
+        p_overwrite_email: true,
       });
     } catch (err) {
       throw new Error(
@@ -276,6 +277,7 @@ export const addMemberWithAccess = createServerFn({ method: "POST" })
         p_user_id: userId,
         p_role: data.role,
         p_confirm_email: true,
+        p_overwrite_email: true,
       });
     } catch (err) {
       // The login exists in Auth now, so keep the member record and let an admin
@@ -314,6 +316,9 @@ export const linkMemberAccount = createServerFn({ method: "POST" })
     await callAdminRpc(context.supabase, "admin_link_member_account", {
       p_member_id: data.memberId,
       p_user_id: data.userId,
+      p_role: null,
+      p_confirm_email: false,
+      p_overwrite_email: false,
     });
 
     return {
