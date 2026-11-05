@@ -537,10 +537,9 @@ export type Database = {
       admin_link_member_account:
         | {
             Args: {
-              p_confirm_email?: boolean
+              p_confirm_email: boolean
               p_member_id: string
-              p_overwrite_email?: boolean
-              p_role?: Database["public"]["Enums"]["app_role"]
+              p_role: Database["public"]["Enums"]["app_role"]
               p_user_id: string
             }
             Returns: Json
@@ -549,6 +548,7 @@ export type Database = {
             Args: {
               p_confirm_email: boolean
               p_member_id: string
+              p_overwrite_email: boolean
               p_role: Database["public"]["Enums"]["app_role"]
               p_user_id: string
             }
