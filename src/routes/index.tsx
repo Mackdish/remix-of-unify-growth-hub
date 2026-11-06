@@ -18,6 +18,13 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
+const stats = [
+  { label: "Active members", value: "11" },
+  { label: "Total contributions", value: "KSh 16,500" },
+  { label: "Active loans", value: "KSh 195,000" },
+  { label: "Group balance", value: "KSh 228,757" },
+];
+
 const values = [
   { icon: HeartHandshake, title: "Unity", body: "We work together, decide together, and grow together as one." },
   { icon: ShieldCheck, title: "Transparency", body: "Every shilling is tracked and every member can verify their records." },
