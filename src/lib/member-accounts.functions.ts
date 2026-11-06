@@ -105,7 +105,6 @@ export const createMemberCredentials = createServerFn({ method: "POST" })
         p_role: "member",
         p_confirm_email: true,
         p_overwrite_email: true,
-        p_overwrite_email: true,
       });
     } catch (err) {
       throw new Error(
