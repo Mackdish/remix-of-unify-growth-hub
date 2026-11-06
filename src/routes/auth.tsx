@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { ShieldCheck, Lock, Loader2 } from "lucide-react";
 import logo from "@/assets/logo.png";
@@ -30,12 +30,12 @@ function Auth() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const claimPendingInvite = async () => {
+  const claimPendingInvite = useCallback(async () => {
     const token = new URLSearchParams(window.location.search).get("invite");
     if (!token) return;
     await claimInvite({ data: { token } });
     window.history.replaceState({}, "", "/auth");
-  };
+  }, [claimInvite]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -48,12 +48,13 @@ function Auth() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       try {
+        await claimPendingInvite();
         navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not verify account access");
       }
     });
-  }, [navigate]);
+  }, [claimPendingInvite, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
