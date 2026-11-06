@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createPublicSupabaseClient } from "@/lib/supabase-public";
 
 const AppRole = z.enum([
   "super_admin",
@@ -199,36 +200,17 @@ export const acceptMemberInvite = createServerFn({ method: "POST" })
   });
 
 async function fetchPublicInvite(token: string) {
-  const url =
-    import.meta.env.VITE_SUPABASE_URL ||
-    import.meta.env.SUPABASE_URL;
-  const key =
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    import.meta.env.SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !key) {
-    throw new Error("Supabase public configuration is missing");
-  }
-
-  const response = await fetch(
-    `${url}/rest/v1/rpc/get_member_invite`,
-    {
-      method: "POST",
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ p_token: token }),
-    },
+  const { data, error } = await createPublicSupabaseClient().rpc(
+    "get_member_invite",
+    { p_token: token },
   );
 
-  if (!response.ok) {
-    return { data: null, error: new Error(`Invite lookup failed (${response.status})`) };
+  if (error) {
+    return { data: null, error: new Error(`Invite lookup failed: ${error.message}`) };
   }
 
   return {
-    data: (await response.json()) as Array<{
+    data: data as Array<{
       full_name: string;
       email: string | null;
       expires_at: string;
