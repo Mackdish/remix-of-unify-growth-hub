@@ -48,6 +48,7 @@ function Auth() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       try {
+        await claimPendingInvite();
         navigate({ to: await getAuthenticatedLandingRoute(data.user.id), replace: true });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not verify account access");
